@@ -4,9 +4,7 @@ const APP_SECRET = Deno.env.get("APP_SECRET") || "";
 const rateLimitMap = new Map<string, { count: number; startTime: number }>();
 
 const ALLOWED_ORIGINS = [
-  "https://www.batxi2uni.run.place",
-  "https://batxi2uni.run.place",
-  "https://api.batxi2uni.run.place",
+  "*",
 ];
 
 // ========== FUNCIONES ==========
