@@ -95,7 +95,7 @@ async function callGroq(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "llama3-70b-8192",  // Modelo rápido y capaz; puedes cambiarlo
+          model: "llama-3.1-8b-instant",  // Modelo rápido y capaz; puedes cambiarlo
           messages: messagesForGroq,
           max_tokens: 3500,
           temperature: 0.7,
