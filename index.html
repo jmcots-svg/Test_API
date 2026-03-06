@@ -1,80 +1,654 @@
 <!DOCTYPE html>
-<html lang="en">
-
+<html lang="ca">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Hello, Deno</title>
-  <link rel="preload" href="https://demo-styles.deno.deno.net/fonts/Moranga-Regular.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="preload" href="https://demo-styles.deno.deno.net/fonts/Moranga-Medium.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="preload" href="https://demo-styles.deno.deno.net/fonts/Recursive_Variable.woff2" as="font" type="font/woff2" crossorigin />
-  <link rel="stylesheet" href="https://demo-styles.deno.deno.net/styles.css">
-  <style>
-    img {
-      display: inline-block;
-      vertical-align: middle;
-    }
-  </style>
-</head>
+    <meta charset="UTF-8">
+	<meta name="viewport" content="width=device-width, initial-scale=1.0">
+	<link rel="icon" type="image/png" href="logo.png">
+    <link rel="shortcut icon" type="image/png" href="logo.png">
+    <link rel="apple-touch-icon" href="logo.png">
+	<meta name="description" content="Calculadora universitària per a estudiants de batxillerat. Orientació acadèmica i professional.">
+	<meta name="category" content="education">
+	<meta name="classification" content="Educational">
+	<meta name="robots" content="index, follow">
+    <title>Calculadora de Ponderacions i Notes de Tall 2026 | SJ Pro</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.0/package/dist/xlsx.full.min.js"></script>
+    <style>
+        :root { --primary: #3498db; --secondary: #27ae60; --dark: #2c3e50; --light: #f1f2f6; --accent: #8e44ad; --ai-color: #f39c12; }
+        body { font-family: 'Segoe UI', system-ui, sans-serif; background-color: #f4f7f6; padding: 20px; color: #333; margin: 0; }
+        .container { max-width: 1050px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        .header-area { display: flex; flex-direction: column; align-items: center; margin-bottom: 25px; }
+        .logo-main { height: 70px; margin-bottom: 10px; }
+        h1 { text-align: center; color: var(--dark); margin: 0; font-size: 1.6em; }
+        
+        .panel { background: var(--light); padding: 18px; border-radius: 10px; margin-bottom: 15px; border: 1px solid #ddd; position: relative; }
+        .reverse-filter { border-left: 5px solid var(--accent); background: #fdfaff; }
+        .step-number { background: var(--dark); color: white; padding: 2px 7px; border-radius: 4px; margin-right: 6px; font-size: 0.85em; display: inline-block; }
+        
+        .controls-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 12px; }
+        label { font-weight: bold; font-size: 0.75em; text-transform: uppercase; color: #555; display: block; margin-bottom: 6px; }
+        select, textarea { 
+            width: 100%; 
+            padding: 10px; 
+            border-radius: 6px; 
+            border: 1px solid #ccc; 
+            background: white; 
+            font-family: inherit; 
+            box-sizing: border-box;
+            font-size: 14px; 
+        }
 
-<body>
-    <main>
-      <section>
-        <a href="https://deno.com/deploy">
-        </a>
-      <h1>
-        <p>
-          Hello, Deno!
-        </p>
-      </h1>
-      <p>
-        This little example is being served by <a href="https://deno.com/">Deno</a>.
-        You can run it locally or in porduction on <a href="https://deno.com/deploy">Deno Deploy</a> or other hosting platforms.
-      </p>
-      <ul>
-        <li>Run it locally with<code>deno task dev</code></li>
-        <li>Deploy it to <a href="https://deno.com/deploy">Deno Deploy</a> via the CLI by running<code>deno deploy</code></li>
-        <li>Run it locally and share it publically by running <code>deno deploy --connected</code></li>
-      </ul>
-    </section>
-      <hr>
-    <section>
-      <h2>What's next?</h2>
-      <p>
-        You can clone this example and deploy it to Deno Deploy in just a few clicks
-        <a href="https://app.deno.com/new?clone=https://github.com/denoland/examples&path=hello-world"><img src="https://deno.com/button" alt="Deploy on Deno"/></a>
-      </p>
-      <ul>
-        <li>
-          <a href="https://docs.deno.com/examples">More examples in the Deno Docs</a>
-        </li>
-        <li>
-          <a href="https://deno.com/deploy">Deno Deploy Early Access</a>
-        </li>
-      </ul>
-    </section>
-    </main>
-    <hr>
-    <footer>
-      <section>
-      <ul class="flex-btwn">
-        <li>
-          <a href="https://deno.com">BlueSky</a>
-        </li>
-        <li>
-          <a href="https://deno.com">Twitter</a>
-        </li>
-        <li>
-          <a href="https://deno.com">YouTube</a>
-        </li>
-        <li>
-          <a href="https://deno.com">Newsletter</a>
-        </li>
-        <li>
-          <a href="https://deno.com">Deno</a>
-        </li>
-      </ul>
-      </section>
-    </footer>
+
+        /* MULTISELECT */
+        .multiselect-container { position: relative; width: 100%; }
+        .multiselect-header { background: white; border: 1px solid #ccc; padding: 10px; border-radius: 6px; cursor: pointer; font-size: 0.9em; display: flex; justify-content: space-between; height: 40px; align-items: center; }
+        .multiselect-options { position: absolute; top: 100%; left: 0; width: 100%; background: white; border: 1px solid #ccc; display: none; z-index: 100; max-height: 200px; overflow-y: auto; box-shadow: 0 5px 15px rgba(0,0,0,0.1); }
+        .multiselect-options label { display: flex; align-items: center; padding: 8px; margin: 0; text-transform: none; font-weight: normal; cursor: pointer; border-bottom: 1px solid #eee; }
+
+        /* IA PANEL */
+        #panelIA { border-left: 5px solid var(--ai-color); display: none; margin-bottom: 20px; }
+        #respuesta-ia { background: white; padding: 15px; border-radius: 8px; border: 1px solid #ddd; margin-top: 10px; min-height: 40px; font-size: 0.95em; line-height: 1.4; max-height: 500px; overflow-y: auto; }
+        .btn-close-ia { position: absolute; top: 10px; right: 10px; background: none; border: none; cursor: pointer; font-size: 1.2em; color: #999; }
+
+        /* ACCIONS */
+        .btn-actions { display: flex; gap: 10px; margin-top: 20px; flex-wrap: wrap; }
+        .btn-tool { padding: 10px 15px; border: none; border-radius: 6px; cursor: pointer; font-weight: bold; font-size: 0.85em; display: flex; align-items: center; gap: 6px; color: white; }
+
+        /* TAULA */
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { background: var(--dark); color: white; padding: 12px; text-align: left; font-size: 0.85em; text-transform: uppercase; }
+        td { padding: 15px 12px; border-bottom: 1px solid #eee; vertical-align: middle; }
+        .prof-badge { width: 35px; height: 35px; border-radius: 8px; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; }
+        .grade-id { font-family: monospace; font-weight: bold; color: #d35400; background: #fff5e6; padding: 2px 6px; border-radius: 4px; border: 1px solid #f5c6cb; font-size: 0.8em; margin-right: 8px; }
+        .tag { display: inline-block; background: #f8f9fa; padding: 2px 8px; border-radius: 4px; font-size: 0.75em; margin: 4px 4px 0 0; color: #444; border: 1px solid #e0e0e0; }
+        .score-big { font-size: 1.6em; font-weight: 900; color: var(--secondary); text-align: right; }
+
+        @media print { .btn-actions, .panel, .header-area, .back-btn { display: none !important; } .container { box-shadow: none; border: none; } }
+    
+	
+        /* ========== RESPUESTA IA SIMPLIFICADA ========== */
+        .ai-response {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            color: #2c3e50;
+            font-size: 14px;  
+        }
+
+        .ai-response p {
+            margin: 10px 0;
+            font-size: 14px; 
+        }
+
+        .ai-response br {
+            display: block;
+            margin: 8px 0;
+        }
+				
+		/* PONDERACIONES DESGLOSE */
+		.ponderaciones-desglose {
+			background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
+			padding: 10px;
+			border-radius: 6px;
+			border-left: 4px solid var(--secondary);
+			margin-top: 10px;
+		}
+
+		.ponderaciones-grid {
+			display: flex;
+			flex-wrap: wrap;
+			gap: 8px;
+		}
+
+		.ponderacion-item {
+			display: inline-flex;
+			align-items: center;
+			gap: 6px;
+			background: white;
+			padding: 6px 10px;
+			border-radius: 5px;
+			border: 1px solid #ddd;
+			font-size: 0.8em;
+			box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+		}
+
+		.ponderacion-item strong {
+			color: var(--dark);
+			font-weight: 600;
+		}
+
+		.ponderacion-valor {
+			background: linear-gradient(135deg, var(--secondary), var(--primary));
+			color: white;
+			padding: 2px 8px;
+			border-radius: 4px;
+			font-weight: bold;
+			font-size: 0.9em;
+		}
+
+		/* Responsive */
+		@media (max-width: 768px) {
+			.ponderaciones-grid {
+				flex-direction: column;
+				gap: 6px;
+			}
+			
+			.ponderacion-item {
+				justify-content: space-between;
+			}
+		}
+	</style>
+</head>
+<body onload="iniciarApp()">
+
+<div class="container">
+    <div class="header-area">
+        <img src="logo.png" alt="SJ Pro" class="logo-main">
+        <h1>Calculadora Universitària SJ</h1>
+    </div>
+
+    <div id="zonaCarga" style="text-align:center; padding:50px;"><h3>Carregant dades...</h3></div>
+
+    <div id="pantallaInicio" style="display:none; text-align:center; padding:40px 10px;">
+        <h2 style="margin-bottom:30px;">Com vols començar la teva cerca?</h2>
+        <button class="btn-decision" style="background:var(--primary); font-size:1.1em; padding:15px 30px; border-radius:50px; border:none; color:white; font-weight:bold; cursor:pointer; margin:10px;" onclick="setModo('SI')">SÍ, sé quin grau vull</button>
+        <button class="btn-decision" style="background:var(--accent); font-size:1.1em; padding:15px 30px; border-radius:50px; border:none; color:white; font-weight:bold; cursor:pointer; margin:10px;" onclick="setModo('NO')">NO, vull explorar</button>
+		
+		 <!-- ✅ OPCIONES SECUNDARIAS (aquí sí es correcto) -->
+		<div style="margin-top: 50px; padding: 25px 20px;">
+			<hr style="border: none; border-top: 1px solid #e0e0e0; margin-bottom: 25px;">
+			<p style="font-size: 13px; color: #aaa; margin-bottom: 18px; font-weight: 500; text-transform: uppercase; letter-spacing: 1px;">
+				Altres eines que et poden interessar
+			</p>
+			<p style="font-size: 14px; color: #666; margin-bottom: 12px; line-height: 1.7;">
+				🧭 Si vols fer un <strong>test d'orientació</strong> complert, pots anar a:<br>
+				<a href="https://preparats.cat/graus/test-dorientacio" 
+				   target="_blank" 
+				   rel="noopener noreferrer"
+				   style="color: #2196F3; text-decoration: none; border-bottom: 1px dashed #2196F3;">
+				   preparats.cat – Test d'Orientació
+				</a>
+			</p>
+			<p style="font-size: 14px; color: #666; margin-bottom: 0; line-height: 1.7;">
+				🎯 Si vols fer una <strong>simulació de notes de tall</strong>, pots utilitzar:<br>
+				<a href="https://preparats.cat/selectivitat/calculadora-nota-de-tall" 
+				   target="_blank" 
+				   rel="noopener noreferrer"
+				   style="color: #9C27B0; text-decoration: none; border-bottom: 1px dashed #9C27B0;">
+				   preparats.cat – Calculadora de Nota de Tall
+				</a>
+			</p>
+		</div>
+
+</div>
+	
+	</div>
+
+    <div id="mainUI" style="display:none;">
+        <button onclick="location.reload()" style="background:none; border:none; text-decoration:underline; color:#777; cursor:pointer; margin-bottom:15px;">« Tornar a l'inici</button>
+        
+        <div id="panelIA" class="panel">
+            <button class="btn-close-ia" onclick="cerrarIA()">✕</button>
+            <label>✨ Pregunta a l'IA sobre els graus <small>(Versió Experimental)</small></label>
+            <textarea id="input-ia" rows="2" placeholder="Ex: Quina carrera té millor salida professional? O quines universitats estan a Barcelona?"></textarea>
+            <button id="btn-preguntar-ia" onclick="enviarConsultaIA()" style="background:var(--ai-color); color:white; border:none; padding:10px; border-radius:6px; width:100%; margin-top:8px; cursor:pointer; font-weight:bold;">Enviar consulta</button>
+            <div id="respuesta-ia"></div>
+        </div>
+
+        <div id="panelGrado" class="panel reverse-filter" style="display:none;">
+            <label><span class="step-number">1</span> Escull el grau de referència</label>
+            <select id="selGrado" onchange="cambioGrado()">
+                <option value="">-- Selecciona un Grau --</option>
+            </select>
+        </div>
+
+        <div id="panelMaterias" class="panel">
+            <label><span class="step-number">2</span> Tria les teves matèries de modalitat</label>
+            <div class="controls-grid">
+				<select id="m1" class="m-sel" onchange="actualizarOpcionesDisponibles(); actualizarTodo()"></select>
+				<select id="m2" class="m-sel" onchange="actualizarOpcionesDisponibles(); actualizarTodo()"></select>
+				<select id="m3" class="m-sel" onchange="actualizarOpcionesDisponibles(); actualizarTodo()"></select>
+				<select id="m4" class="m-sel" onchange="actualizarOpcionesDisponibles(); actualizarTodo()"></select>
+            </div>
+        </div>
+
+        <div class="panel" style="background:#fff;">
+            <label>Filtres i Ordenació Avançada</label>
+            <div class="controls-grid">
+                <div class="multiselect-container">
+                    <label style="font-size:0.65em">Poblacions</label>
+                    <div class="multiselect-header" onclick="toggleMultiselect()">Totes</div>
+                    <div id="poblacionsList" class="multiselect-options"></div>
+                </div>
+                <div>
+                    <label style="font-size:0.65em">Min. Sortida Prof.</label>
+                    <select id="fMinProf" onchange="actualizarTodo()">
+                        <option value="0">Totes</option>
+                        <option value="3">> 3</option>
+                        <option value="6">> 6</option>
+                        <option value="8">> 8</option>
+                        <option value="10">= 10</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:0.65em">Mín. Ponderació</label>
+                    <select id="fMinPond" onchange="actualizarTodo()">
+                        <option value="0">Totes</option>
+                        <option value="0.4">> 0,4</option>
+                        <option value="0.6">> 0,6</option>
+                        <option value="0.8">> 0,8</option>
+                    </select>
+                </div>
+                <div>
+                    <label style="font-size:0.65em">Ordenar per</label>
+                    <select id="fOrden" onchange="actualizarTodo()">
+                        <option value="total_desc">Punts (Màx-Mín)</option>
+                        <option value="nota_desc">Nota Tall (Màx-Mín)</option>
+                        <option value="nota_asc">Nota Tall (Mín-Màx)</option>
+                        <option value="prof_desc">Sortida Prof.</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <div class="btn-actions">
+            <button class="btn-tool" style="background:var(--ai-color);" onclick="abrirConsultaIAGeneral()">✨ Preguntar IA</button>
+            <button class="btn-tool" style="background:#e74c3c;" onclick="window.print()">📄 Exportar PDF</button>
+            <button class="btn-tool" style="background:#27ae60;" onclick="exportExcel()">📊 Excel</button>
+            <button class="btn-tool" style="background:#7f8c8d;" onclick="reiniciarFiltros()">🔄 Netejar Filtres</button>
+        </div>
+
+        <table id="tablaRes">
+            <thead>
+                <tr>
+                    <th style="width:50px; text-align:center;">Sortida</th>
+                    <th>Detall del Grau (<span id="txtContador">0</span>)</th>
+                    <th style="width:100px; text-align:right;">Punts</th>
+                </tr>
+            </thead>
+            <tbody></tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+let LINEAS = [];
+let ASIG_MAP = {}; 
+let MODO_APP = "";
+let pobsSel = [];
+let historialIA = [];
+let ultimasCarrerasFiltradas = [];
+
+// ========== CONFIGURACION API ==========
+const API_ENDPOINT = "https://test-api.jmcots-svg.deno.net/";  // ← CAMBIAR SI ES NECESARIO
+
+async function iniciarApp() {
+    try {
+        const response = await fetch('ponderaciones.csv');
+        const text = await response.text();
+        parseData(text);
+    } catch (e) { 
+        console.error("Error:", e);
+        alert("Error al carregar el fitxer de dades."); 
+    }
+}
+
+function parseData(textoRaw) {
+    try {
+        LINEAS = textoRaw.split(/\r?\n/).filter(l => l.trim() !== "").map(l => l.split(';'));
+        const h = LINEAS[0];
+        for(let i=7; i<h.length; i++){
+            let nom = h[i].replace(/"/g, '').trim();
+            if(nom){ if(!ASIG_MAP[nom]) ASIG_MAP[nom]=[]; ASIG_MAP[nom].push(i); }
+        }
+        const pobs = [...new Set(
+			LINEAS.slice(1)
+				.flatMap(r => limpiar(r[4]).split(',').map(p => p.trim()))
+				.filter(x => x)
+		)].sort();
+        document.getElementById('poblacionsList').innerHTML = pobs.map(p => `<label><input type="checkbox" value="${p}" onchange="updatePobs(this)"> ${p}</label>`).join('');
+        llenarGrados();
+        document.getElementById('zonaCarga').style.display = 'none';
+        document.getElementById('pantallaInicio').style.display = 'block';
+    } catch(e) {
+        console.error("Error en parseData:", e);
+        alert("Error processant dades: " + e.message);
+    }
+}
+
+function setModo(modo) {
+    MODO_APP = modo;
+    document.getElementById('pantallaInicio').style.display = 'none';
+    document.getElementById('mainUI').style.display = 'block';
+    document.getElementById('panelGrado').style.display = (modo === 'SI') ? 'block' : 'none';
+    if(modo === 'NO') { 
+        renderSelMaterias(Object.keys(ASIG_MAP).sort()); 
+        actualizarTodo(); 
+    }
+}
+
+function updatePobs(cb) {
+    if(cb.checked) pobsSel.push(cb.value); 
+    else pobsSel = pobsSel.filter(p => p !== cb.value);
+    document.querySelector('.multiselect-header').innerText = pobsSel.length > 0 ? pobsSel.length + " sel." : "Totes";
+    actualizarTodo();
+}
+
+function toggleMultiselect() { 
+    const o = document.getElementById('poblacionsList'); 
+    o.style.display = o.style.display === 'block' ? 'none' : 'block'; 
+}
+
+function llenarGrados() {
+    const grados = [...new Set(LINEAS.slice(1).map(r => limpiar(r[2])))].filter(x => x).sort();
+    document.getElementById('selGrado').innerHTML = '<option value="">-- Selecciona un Grau --</option>' + 
+        grados.map(g => `<option value="${g}">${g}</option>`).join('');
+}
+
+function cambioGrado() {
+    const grado = document.getElementById('selGrado').value;
+    if(!grado) return;
+    const ok = new Set();
+    LINEAS.forEach((r, i) => { 
+        if(i>0 && limpiar(r[2]) === grado) { 
+            for(let m in ASIG_MAP) {
+                ASIG_MAP[m].forEach(idx => { 
+                    if(aNum(r[idx]) >= 0.2) ok.add(m); 
+                }); 
+            } 
+        } 
+    });
+    renderSelMaterias(Array.from(ok).sort());
+    actualizarTodo();
+}
+
+function renderSelMaterias(lista) {
+    document.querySelectorAll('.m-sel').forEach(s => {
+        const pre = s.value;
+        s.innerHTML = '<option value="">-- Matèria --</option>' + 
+            lista.map(m => `<option value="${m}">${m}</option>`).join('');
+        s.value = pre;
+    });
+    actualizarOpcionesDisponibles();
+}
+
+function actualizarOpcionesDisponibles() {
+    // Recoge los valores actualmente seleccionados
+    const selects = Array.from(document.querySelectorAll('.m-sel'));
+    const elegidas = selects.map(s => s.value).filter(v => v);
+
+    selects.forEach(sel => {
+        Array.from(sel.options).forEach(opt => {
+            if (opt.value === "") return; // Ignora la opción vacía
+            // Deshabilita si está elegida en OTRO selector
+            opt.disabled = elegidas.includes(opt.value) && opt.value !== sel.value;
+            // Estilo visual para opciones deshabilitadas
+            opt.style.color = opt.disabled ? '#ccc' : '';
+        });
+    });
+}
+
+function actualizarTodo() {
+    const elegidas = Array.from(document.querySelectorAll('.m-sel')).map(s => s.value).filter(v => v);
+    const minPond = parseFloat(document.getElementById('fMinPond').value);
+    const minProf = parseFloat(document.getElementById('fMinProf').value);
+    const orden = document.getElementById('fOrden').value;
+    const gRef = document.getElementById('selGrado').value;
+
+    let filtrados = [];
+    
+    LINEAS.forEach((row, idx) => {
+        if(idx === 0 || !row[2]) return;
+        
+        const gNom = limpiar(row[2]);
+        const pNom = limpiar(row[4]);
+        const prof = aNum(row[0]);
+        
+        if (elegidas.length === 0 && MODO_APP === 'SI' && gNom !== gRef) return;
+        if (pobsSel.length > 0) {
+			const pobsDeEstaFila = pNom.split(',').map(p => p.trim());
+			const coincide = pobsSel.some(sel => pobsDeEstaFila.includes(sel));
+			if (!coincide) return;
+		}
+        if (prof < minProf) return;
+
+        let suma = 0;
+        let ponderacionesPorMateria = {};
+        
+        elegidas.forEach(m => {
+            let max = 0;
+            if(ASIG_MAP[m]) {
+                ASIG_MAP[m].forEach(c => {
+                    let v = aNum(row[c]);
+                    if(v > max) max = v;
+                });
+            }
+            suma += max;
+            ponderacionesPorMateria[m] = max;
+        });
+
+        if (suma < minPond) return;
+        
+        filtrados.push({ 
+            prof, 
+            id: limpiar(row[1]), 
+            grado: gNom, 
+            univ: limpiar(row[3]), 
+            pNom, 
+            nota: aNum(row[6]), 
+            total: suma,
+            ponderaciones: ponderacionesPorMateria
+        });
+    });
+
+    filtrados.sort((a,b) => {
+        if(orden === 'total_desc') return b.total - a.total || b.nota - a.nota;
+        if(orden === 'nota_desc') return b.nota - a.nota;
+        if(orden === 'nota_asc') return a.nota - b.nota;
+        if(orden === 'prof_desc') return b.prof - a.prof;
+        return 0;
+    });
+
+    ultimasCarrerasFiltradas = filtrados;
+
+    const tbody = document.querySelector('#tablaRes tbody');
+    document.getElementById('txtContador').innerText = filtrados.length;
+    
+    tbody.innerHTML = filtrados.map(r => {
+        const desglosePond = Object.entries(r.ponderaciones)
+            .filter(([_, val]) => val > 0)
+            .map(([materia, valor]) => `
+                <span class="ponderacion-item">
+                    <strong>${materia}</strong>
+                    <span class="ponderacion-valor">${valor.toFixed(2)}</span>
+                </span>
+            `)
+            .join('');
+        
+        return `
+            <tr>
+                <td><div class="prof-badge" style="background:${getColorProf(r.prof)}">${r.prof}</div></td>
+                <td>
+                    <div><span class="grade-id">${r.id}</span><strong>${r.grado}</strong></div>
+                    <div style="font-size:0.85em; color:#666;">${r.univ}</div>
+                    <div><span class="tag">📍 ${r.pNom}</span><span class="tag">📝 Nota: ${r.nota.toFixed(3)}</span></div>
+                    ${desglosePond ? `
+                        <div class="ponderaciones-desglose">
+                            <span style="font-size:0.75em; font-weight:bold; color:#666; display:block; margin-top:8px; margin-bottom:6px;">📊 Ponderacions per matèria:</span>
+                            <div class="ponderaciones-grid">
+                                ${desglosePond}
+                            </div>
+                        </div>
+                    ` : ''}
+                </td>
+                <td class="score-big">${r.total.toFixed(1).replace('.', ',')}</td>
+            </tr>
+        `;
+    }).join('');
+}
+
+function getColorProf(n) { 
+    const hue = (n - 1) * 25; 
+    return `hsl(${hue}, 70%, 45%)`; 
+}
+
+function limpiar(t) { 
+    return t ? t.toString().replace(/"/g, '').trim() : ""; 
+}
+
+function aNum(v) { 
+    let n = parseFloat(v.toString().replace(',', '.')); 
+    return isNaN(n) ? 0 : n; 
+}
+
+function abrirConsultaIAGeneral() {
+    if (ultimasCarrerasFiltradas.length === 0) {
+        alert("No hi ha carreres per consultar. Aplica els filtres primer.");
+        return;
+    }
+    historialIA = [];
+    document.getElementById('panelIA').style.display = 'block';
+    document.getElementById('respuesta-ia').innerText = '';
+    document.getElementById('input-ia').value = '';
+    document.getElementById('input-ia').focus();
+    document.getElementById('panelIA').scrollIntoView({ behavior: 'smooth' });
+}
+
+function cerrarIA() { 
+    document.getElementById('panelIA').style.display = 'none'; 
+}
+
+async function enviarConsultaIA() {
+    const input = document.getElementById("input-ia");
+    const resDiv = document.getElementById("respuesta-ia");
+    const preguntaUser = input.value.trim();
+    
+    if(!preguntaUser) {
+        resDiv.innerText = "Por favor, escribe una pregunta.";
+        return;
+    }
+
+    resDiv.innerHTML = "<em>L'IA està pensant...</em>";
+    input.value = ""; 
+
+    // Asegurar que historialIA existe
+    if (!Array.isArray(historialIA)) {
+        historialIA = [];
+    }
+
+    const asignaturasSeleccionadas = Array.from(document.querySelectorAll('.m-sel'))
+        .map(s => s.value)
+        .filter(v => v);
+    
+    const fMinProf = document.getElementById('fMinProf')?.value || "0";
+    const fMinPond = document.getElementById('fMinPond')?.value || "0";
+    const fOrden = document.getElementById('fOrden')?.value || "total_desc";
+
+    const lineasCarreras = ultimasCarrerasFiltradas.slice(0, 50)
+        .map((carrera, idx) => `${idx + 1}. ${carrera.grado} (${carrera.univ}, ${carrera.pNom}) - Sortida Prof: ${carrera.prof}/10 - Nota tall: ${carrera.nota.toFixed(3)} - Punts personals: ${carrera.total.toFixed(2)}`)
+        .join('\n');
+
+    const contextoFormatado = `[📚 DADES DEL STUDENT]
+Asignaturas seleccionades: ${asignaturasSeleccionadas.length > 0 ? asignaturasSeleccionadas.join(', ') : 'Cap'}
+
+[📋 CARRERES MÉS RELLEVANTS]
+Total disponible: ${ultimasCarrerasFiltradas.length} carreres (mostrant les ${Math.min(50, ultimasCarrerasFiltradas.length)} millors)
+
+${lineasCarreras}
+
+[🔧 FILTRES ACTIUS]
+Poblacions: ${pobsSel.length > 0 ? pobsSel.join(', ') : 'Totes'}
+Nota Prof. mín: ${fMinProf}
+Ponderació mín: ${fMinPond}
+Ordenació: ${fOrden}
+
+[❓ PREGUNTA DEL STUDENT]
+${preguntaUser}`;
+
+    const promptFinal = historialIA.length === 0 ? contextoFormatado : preguntaUser;
+    historialIA.push({ role: "user", content: promptFinal });
+
+    try {
+		// ✅ SIN HEADER DE SECRET - ENVIO DIRECTO
+        const response = await fetch(API_ENDPOINT, {
+            method: "POST",
+            headers: { 
+				"Content-Type": "application/json"
+										 
+			},
+            body: JSON.stringify({ messages: historialIA })
+        });
+        
+        if (!response.ok) throw new Error(`Error ${response.status}`);
+
+        const data = await response.json();
+        const respuestaTexto = data[0]?.generated_text || "Sense resposta.";
+        const respuestaHTML = data[0]?.html || `<div class="ai-response"><p>${respuestaTexto}</p></div>`;
+
+        historialIA.push({ role: "assistant", content: respuestaTexto });
+        resDiv.innerHTML = respuestaHTML;
+        
+    } catch (e) {
+        resDiv.innerHTML = `<p style="color:red;">❌ Error: ${e.message}</p>`;
+        console.error("Error completo:", e);
+    }
+}
+
+function exportExcel() {
+    // Crear datos limpios desde ultimasCarrerasFiltradas
+    const datos = ultimasCarrerasFiltradas.map(r => {
+        let fila = {
+            "SORTIDA": r.prof,
+            "CODI": r.id,
+            "GRAU": r.grado,
+            "UNIVERSITAT": r.univ,
+            "POBLACIO": r.pNom,
+            "NOTA TALL": r.nota.toFixed(3),
+            "PUNTS TOTALS": r.total.toFixed(2)
+        };
+        
+        // Añadir cada materia como columna
+        Object.entries(r.ponderaciones).forEach(([materia, valor]) => {
+            fila[`PONDERACIO: ${materia}`] = valor.toFixed(2);
+        });
+        
+        return fila;
+    });
+
+    // Crear workbook
+    const ws = XLSX.utils.json_to_sheet(datos);
+    
+    // Ajustar ancho de columnas
+    const colWidths = [
+        { wch: 8 },   // SORTIDA
+        { wch: 10 },  // CODI
+        { wch: 50 },  // GRAU
+        { wch: 20 },  // UNIVERSITAT
+        { wch: 15 },  // POBLACIO
+        { wch: 12 },  // NOTA TALL
+        { wch: 12 }   // PUNTS TOTALS
+    ];
+    ws['!cols'] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Resultats SJ Pro");
+    XLSX.writeFile(wb, "Simulacio_Graus_2026.xlsx");
+}
+
+function reiniciarFiltros() {
+    document.querySelectorAll('input[type=checkbox]').forEach(c => c.checked = false);
+    pobsSel = [];
+    document.querySelector('.multiselect-header').innerText = "Totes";
+    document.getElementById('fMinPond').value = "0";
+    document.getElementById('fMinProf').value = "0";
+    document.getElementById('fOrden').value = "total_desc";
+    document.querySelectorAll('.m-sel').forEach(s => s.value = "");
+    actualizarTodo();
+}
+
+window.onclick = function(e) { 
+    if (!e.target.matches('.multiselect-header') && !e.target.closest('.multiselect-options')) {
+        document.getElementById('poblacionsList').style.display = 'none';
+    } 
+}
+</script>
 </body>
 </html>
