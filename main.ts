@@ -95,7 +95,7 @@ async function callGroq(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "meta-llama/llama-4-scout-17b-16e-instruct",  // Modelo en Groq
+          model: "llama-3.3-70b-versatile",  // Modelo en Groq
           messages: messagesForGroq,
           max_tokens: 3500,
           temperature: 0.7,
