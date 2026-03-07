@@ -520,41 +520,53 @@ async function enviarConsultaIA() {
     const input = document.getElementById("input-ia");
     const resDiv = document.getElementById("respuesta-ia");
     const preguntaUser = input.value.trim();
-    
-	const MAX_CARRERES = 700;
-	
-    if(!preguntaUser) {
+
+    if (!preguntaUser) {
         resDiv.innerText = "Por favor, escribe una pregunta.";
         return;
     }
 
     resDiv.innerHTML = "<em>L'IA està pensant...</em>";
-    input.value = ""; 
+    input.value = "";
 
-    // Asegurar que historialIA existe
-    if (!Array.isArray(historialIA)) {
-        historialIA = [];
+    // ✅ Limitar historial (evita acumulación infinita de tokens)
+    const MAX_HISTORIAL = 4;
+    if (historialIA.length > MAX_HISTORIAL) {
+        historialIA = historialIA.slice(-MAX_HISTORIAL);
     }
 
     const asignaturasSeleccionadas = Array.from(document.querySelectorAll('.m-sel'))
         .map(s => s.value)
         .filter(v => v);
-    
+
     const fMinProf = document.getElementById('fMinProf')?.value || "0";
     const fMinPond = document.getElementById('fMinPond')?.value || "0";
     const fOrden = document.getElementById('fOrden')?.value || "total_desc";
 
-    const lineasCarreras = ultimasCarrerasFiltradas.slice(0, MAX_CARRERES)
-        .map((carrera, idx) => `${idx + 1}. ${carrera.grado} (${carrera.univ}, ${carrera.pNom}) - Sortida Prof: ${carrera.prof}/10 - Nota tall: ${carrera.nota.toFixed(3)} - Punts personals: ${carrera.total.toFixed(2)}`)
+    // ✅ 1. Limitar número de carreras enviadas
+    const MAX_CARRERES = 120;
+
+    // ✅ 2. Quitar ponderaciones y reducir estructura
+    const carrerasCompactas = ultimasCarrerasFiltradas
+        .slice(0, MAX_CARRERES)
+        .map(c =>
+            `${c.id}|${c.grado}|${c.univ}|${c.pNom}|Nota:${c.nota}|Punts:${c.total}|Sortida:${c.prof}`
+        )
         .join('\n');
 
-    const contextoFormatado = `[📚 DADES DEL STUDENT]
+    // ✅ 3. Construir contexto solo en la primera pregunta
+    const contextoInicial = `
+[📚 DADES DEL STUDENT]
 Asignaturas seleccionades: ${asignaturasSeleccionadas.length > 0 ? asignaturasSeleccionadas.join(', ') : 'Cap'}
 
-[📋 CARRERES MÉS RELLEVANTS]
-Total disponible: ${ultimasCarrerasFiltradas.length} carreres (mostrant les ${Math.min(MAX_CARRERES, ultimasCarrerasFiltradas.length)} millors)
+[📋 CARRERES]
+Total filtrades: ${ultimasCarrerasFiltradas.length}
+Mostrant a la IA: ${Math.min(MAX_CARRERES, ultimasCarrerasFiltradas.length)}
 
-${lineasCarreras}
+Format:
+ID | Grau | Universitat | Població | Nota | Punts | Sortida
+
+${carrerasCompactas}
 
 [🔧 FILTRES ACTIUS]
 Poblacions: ${pobsSel.length > 0 ? pobsSel.join(', ') : 'Totes'}
@@ -562,23 +574,27 @@ Nota Prof. mín: ${fMinProf}
 Ponderació mín: ${fMinPond}
 Ordenació: ${fOrden}
 
-[❓ PREGUNTA DEL STUDENT]
-${preguntaUser}`;
+[❓ PREGUNTA]
+${preguntaUser}
+`;
 
-    const promptFinal = historialIA.length === 0 ? contextoFormatado : preguntaUser;
+    const promptFinal = historialIA.length === 0
+        ? contextoInicial
+        : preguntaUser;
+
     historialIA.push({ role: "user", content: promptFinal });
 
     try {
-		// ✅ SIN HEADER DE SECRET - ENVIO DIRECTO
         const response = await fetch(API_ENDPOINT, {
             method: "POST",
-            headers: { 
-				"Content-Type": "application/json"
-										 
-			},
-            body: JSON.stringify({ messages: historialIA })
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                messages: historialIA
+            })
         });
-        
+
         if (!response.ok) throw new Error(`Error ${response.status}`);
 
         const data = await response.json();
@@ -587,7 +603,7 @@ ${preguntaUser}`;
 
         historialIA.push({ role: "assistant", content: respuestaTexto });
         resDiv.innerHTML = respuestaHTML;
-        
+
     } catch (e) {
         resDiv.innerHTML = `<p style="color:red;">❌ Error: ${e.message}</p>`;
         console.error("Error completo:", e);
