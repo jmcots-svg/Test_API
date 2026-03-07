@@ -1,5 +1,7 @@
 // main.ts - Proxy a Groq API con una sola key + secret simple
 
+
+
 const APP_SECRET = Deno.env.get("APP_SECRET") || "";
 const rateLimitMap = new Map<string, { count: number; startTime: number }>();
 
@@ -40,18 +42,8 @@ function markdownToHTML(markdown: string): string {
   return `<div class="ai-response"><p>${html}</p></div>`;
 }
 
-async function callGroq(
-  messagesToSend: any[],
-): Promise<any> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw { error: "No GROQ_API_KEY configurada" };
-  }
 
-  console.log(`Usando key: ${apiKey.slice(0, 10)}...`);
-
-  try {
-    const promptDelSistema = `Ets un assessor expert en orientació universitària a Catalunya. El teu objectiu és ajudar a estudiants de batxillerat de forma ÚTIL, RÀPIDA i CONCISA.
+   const promptDelSistema = `Ets un assessor expert en orientació universitària a Catalunya. El teu objectiu és ajudar a estudiants de batxillerat de forma ÚTIL, RÀPIDA i CONCISA.
 
     **EL TEU ROL:**
     1. Respon DIRECTAMENT a la pregunta de l'usuari.
@@ -76,13 +68,23 @@ async function callGroq(
     4. Si és sobre les carreres del llistat → Dona prioritat als dades reals que tens.
     5. Sigues breu però complet. Menys és més, però INFORMATIU.`;
 
-    const messagesForGroq = [
-      { role: "system", content: promptDelSistema },
-      ...messagesToSend.map((msg: any) => ({
-        role: msg.role === "user" ? "user" : "assistant",
-        content: msg.content,
-      })),
-    ];
+
+async function callGroq(
+  messagesToSend: any[],
+): Promise<any> {
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    throw { error: "No GROQ_API_KEY configurada" };
+  }
+
+  console.log(`Usando key: ${apiKey.slice(0, 10)}...`);
+
+  try {
+ 
+     const messagesForGroq = messagesToSend.map(msg => ({
+      role: msg.role,
+      content: msg.content
+    }));
 
     const groqResponse = await fetch(
       `https://api.groq.com/openai/v1/chat/completions`,
@@ -93,7 +95,7 @@ async function callGroq(
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "groq/compound",  // Modelo rápido y capaz; puedes cambiarlo
+          model: "llama-3.3-70b-versatile",  // Modelo rápido y capaz; puedes cambiarlo
           messages: messagesForGroq,
           max_tokens: 3500,
           temperature: 0.7,
@@ -109,9 +111,9 @@ async function callGroq(
     }
 
     if (!groqResponse.ok) {
-      const errorDetails = await groqResponse.text();
-      console.error(`Error ${groqResponse.status}:`, errorDetails);
-      throw { status: groqResponse.status, message: errorDetails };
+      const errorText = await groqResponse.text();
+      console.error("Error Groq:", errorText);
+      throw { status: groqResponse.status, message: errorText };
     }
 
     console.log("✅ Respuesta exitosa");
@@ -119,7 +121,7 @@ async function callGroq(
     return { success: true, data: data };
 
   } catch (e) {
-    console.error("Excepción:", e.message);
+    console.error("Excepción:", e);
     throw e;
   }
 }
@@ -162,100 +164,91 @@ Deno.serve(async (req) => {
     );
   }
 
+  function buildContextPrompt(carreras: any[], asignaturas: string[], filtros: any, pregunta: string) {
+  return `
+DADES DELS FILTRES:
+Assignatures triades: ${asignaturas.length > 0 ? asignaturas.join(", ") : "Cap"}
+
+Filtres:
+- Poblacions: ${filtros?.poblacions?.length ? filtros.poblacions.join(", ") : "Totes"}
+- Sortida professional mínima: ${filtros?.minProf || "0"}
+- Ponderació mínima: ${filtros?.minPond || "0"}
+- Ordenació: ${filtros?.orden || "total_desc"}
+
+LLISTAT DE CARRERES FILTRADES (JSON):
+${JSON.stringify(carreras, null, 2)}
+
+PREGUNTA DE L'ESTUDIANT:
+${pregunta}
+  `;
+}
+  
   // POST / - Consulta IA
-  if (req.method === "POST") {
+if (req.method === "POST") {
 
-    // Rate limiting
-    const clientIp = req.headers.get("x-forwarded-for") || "IP_DESCONOCIDA";
-    if (isRateLimited(clientIp)) {
-      console.warn(`[RATE LIMIT] IP bloqueada: ${clientIp}`);
-      return new Response(
-        JSON.stringify({ error: "Has fet massa preguntes seguides. Si us plau, espera un minut." }),
-        { status: 429, headers }
-      );
-    }
-
-    // ✅ Validar secret simple (x-app-secret == APP_SECRET)
-    const secretRecibido = req.headers.get("x-app-secret") || req.headers.get("X-App-Secret") || "";
-    if (APP_SECRET && secretRecibido !== APP_SECRET) {
-      console.warn("Secret inválido:", secretRecibido.slice(0, 10));
-      return new Response(
-        JSON.stringify({ error: "No autorizado" }),
-        { status: 401, headers }
-      );
-    }
-
-    // Verificar key
-    const apiKey = getApiKey();
-    if (!apiKey) {
-      return new Response(
-        JSON.stringify({ error: "No hay GROQ_API_KEY configurada" }),
-        { status: 500, headers },
-      );
-    }
-
-    try {
-      const body = await req.json();
-
-      let chatMessages = body.messages;
-      if (!chatMessages) {
-        const text = body.inputs || body.prompt || "";
-        chatMessages = [{ role: "user", content: text }];
-      }
-
-      let filteredMessages = chatMessages.filter((msg: any) => msg.role !== "system");
-      if (filteredMessages.length > 40) {
-        filteredMessages = filteredMessages.slice(-40);
-      }
-
-      if (filteredMessages.length === 0) {
-        return new Response(
-          JSON.stringify({ error: "No hay mensajes para procesar" }),
-          { status: 400, headers },
-        );
-      }
-
-      const result = await callGroq(filteredMessages);
-
-      if (!result.success) {
-        return new Response(
-          JSON.stringify({ error: "Error inesperado" }),
-          { status: 502, headers },
-        );
-      }
-
-      const data = result.data;
-      const generatedText =
-        data.choices?.[0]?.message?.content ||
-        "No he pogut generar una resposta.";
-      const htmlResponse = markdownToHTML(generatedText);
-
-      return new Response(
-        JSON.stringify([{
-          generated_text: generatedText.trim(),
-          html: htmlResponse,
-          metadata: {
-            tokens_used: data.usage?.total_tokens,
-            model: data.model,
-          },
-        }]),
-        { headers },
-      );
-
-    } catch (e: any) {
-      console.error("Error Groq o servidor:", e);
-      if (e.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Cuota API excedida. Intenta més tard." }),
-          { status: 429, headers },
-        );
-      }
-      return new Response(
-        JSON.stringify({ error: e.message || "Error del servidor" }),
-        { status: 500, headers },
-      );
-    }
+  const clientIp = req.headers.get("x-forwarded-for") || "IP_DESCONOCIDA";
+  if (isRateLimited(clientIp)) {
+    return new Response(JSON.stringify({ error: "Rate limit" }), { status: 429, headers });
   }
 
+  const secretRecibido = req.headers.get("x-app-secret") || "";
+  if (APP_SECRET && secretRecibido !== APP_SECRET) {
+    return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401, headers });
+  }
+
+  const apiKey = getApiKey();
+  if (!apiKey) {
+    return new Response(JSON.stringify({ error: "Falta GROQ_API_KEY" }), { status: 500, headers });
+  }
+
+  try {
+    const body = await req.json();
+
+    const messages = body.messages || [];
+    const carreras = body.carreras || [];
+    const asignaturas = body.asignaturas || [];
+    const filtros = body.filtros || {};
+    
+    const lastUserMessage = (messages.findLast((msg: any) => msg.role === "user") || {}).content || "";
+
+    // Construim el prompt final amb dades estructurades
+    const promptUsuario = buildContextPrompt(
+      carreras,
+      asignaturas,
+      filtros,
+      lastUserMessage
+    );
+
+    const mensajesConContexto = [
+      { role: "system", content: promptDelSistema },
+      { role: "user", content: promptUsuario }
+    ];
+
+    const result = await callGroq(mensajesConContexto);
+
+    if (!result.success) {
+      return new Response(JSON.stringify({ error: "Error inesperado" }), { status: 502, headers });
+    }
+
+    const data = result.data;
+    const generatedText = data.choices?.[0]?.message?.content || "Sense resposta.";
+    const htmlResponse = markdownToHTML(generatedText);
+
+    return new Response(
+      JSON.stringify([{
+        generated_text: generatedText.trim(),
+        html: htmlResponse,
+        metadata: {
+          tokens_used: data.usage?.total_tokens,
+          model: data.model,
+        },
+      }]),
+      { headers }
+    );
+
+  } catch (e) {
+    return new Response(JSON.stringify({ error: e.message || "Error servidor" }), { status: 500, headers });
+  }
+}
   return new Response("Not Found", { status: 404, headers });
 });
