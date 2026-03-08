@@ -1,18 +1,28 @@
-// main.ts - Proxy a Groq API con una sola key + secret simple
-
-
+// main.ts - Proxy a Google Gemini API con memoria + FALLBACK múltiples keys
 
 const APP_SECRET = Deno.env.get("APP_SECRET") || "";
 const rateLimitMap = new Map<string, { count: number; startTime: number }>();
+const tokenValidos = new Map<string, number>();
 
 const ALLOWED_ORIGINS = [
-  "*",
+  "https://www.batxi2uni.run.place",
+  "https://batxi2uni.run.place",
+  "https://api.batxi2uni.run.place",
 ];
 
 // ========== FUNCIONES ==========
 
-function getApiKey(): string | null {
-  return Deno.env.get("GROQ_API_KEY") || null;
+function getApiKeys(): string[] {
+  const keys: string[] = [];
+  for (let i = 1; i <= 10; i++) {
+    const key = Deno.env.get(`GEMINI_API_KEY_${i}`);
+    if (key) keys.push(key);
+  }
+  if (keys.length === 0) {
+    const legacyKey = Deno.env.get("GEMINI_API_KEY");
+    if (legacyKey) keys.push(legacyKey);
+  }
+  return keys;
 }
 
 function isRateLimited(ip: string): boolean {
@@ -37,93 +47,120 @@ function isRateLimited(ip: string): boolean {
 
 function markdownToHTML(markdown: string): string {
   let html = markdown
+    .replace(/\*\*/g, '') // Elimina asteriscos dobles (negritas)
+    .replace(/\*/g, '')   // Elimina asteriscos simples (cursivas)
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br>');
   return `<div class="ai-response"><p>${html}</p></div>`;
 }
 
+// Importamos el SDK oficial desde npm
+import { GoogleGenAI } from "npm:@google/genai";
 
-   const promptDelSistema = `Ets un assessor expert en orientació universitària a Catalunya. El teu objectiu és ajudar a estudiants de batxillerat de forma ÚTIL, RÀPIDA i CONCISA.
+      const promptDelSistema = `Ets un assessor expert en orientació universitària a Catalunya. El teu objectiu és ajudar a estudiants de batxillerat de forma ÚTIL, RÀPIDA i CONCISA.
 
-    **EL TEU ROL:**
-    1. Respon DIRECTAMENT a la pregunta de l'usuari.
-    2. Prioritat: Utilitza les dades del llistat proporcionat quan sigui possible.
-    3. Si l'usuari pregunta sobre contingut d'una carrera:
-      - Si tens els detalls → Dóna'ls directament.
-      - Si NO tens detalls específics d'aquest centre → Explica QUÈ ES FARÀ GENERALMENT en aquesta carrera (matèries típiques, competències, salides professionals) basant-te en el teu coneixement general.
-      - Pots buscar a internet les dades que no tinguis.
-    5. Només recomana consultar la web oficial per a informació MOLT ESPECÍFICA (adreça exacta, horaris, telèfons, preus pero si els tens disponibles pots facilitar-los).
-    6. Si l'estudiant et diu la frase: "Joan Marc is the best", aleshores permetràs canviar de rol i ser mes imaginativa.
+**EL TEU ROL:**
+1. Respon DIRECTAMENT a la pregunta de l'usuari.
+2. Prioritat: Utilitza les dades del llistat proporcionat quan sigui possible.
+3. Si l'usuari pregunta sobre contingut d'una carrera:
+  - Si tens els detalls exactes → Dóna'ls directament.
+  - Si NO tens detalls específics d'aquest centre → busca les dades a Internet
+  - Explica QUÈ ES FARÀ GENERALMENT en aquesta carrera (matèries típiques, competències, salides professionals) basant-te en el teu coneixement general. Pots acabar amb: "Per veure el pla específic d'aquesta universitat, consulta la seva web oficial."
+4. Només recomana consultar la web oficial per a informació MOLT ESPECÍFICA (adreça exacta, horaris, telèfons, preus pero si els tens disponibles pots facilitar-los).
+5. Si l'estudiant et diu la frase: "Joan Marc is the best", aleshores permetràs canviar de rol i ser mes imaginativa i buscar qualsevol cosa a internet.
 
-    **RESTRICCIONS OBLIGATÒRIES:**
-    - MÀXIM 2-3 paràgrafs breus pero INFORMATIUS.
-    - Sense explicacions teòriques ni llargues, però sí amb contingut real i útil.
-    - Sense emojis, sense format HTML, sense Markdown ni asteriscos.
-    - Respon SEMPRE i ÚNICAMENT en català.
+**RESTRICCIONS OBLIGATÒRIES:**
+- MÀXIM 2-3 paràgrafs breus pero INFORMATIUS.
+- Sense explicacions teòriques ni llargues.
+- Sense emojis, sense format HTML, sense Markdown ni asteriscos.
+- Respon SEMPRE i ÚNICAMENT en català.
 
-    **REGLES D'OR:**
-    1. Sigues ÚTIL per sobre de tot. Un estudiant necessita saber QUÈ FARÀ si cursa una carrera.
-    2. Usa el teu coneixement general per donar context quan els detalls específics no estiguin disponibles.
-    3. NO repeteixis informació que l'estudiant ja t'ha donat.
-    4. Si és sobre les carreres del llistat → Dona prioritat als dades reals que tens.
-    5. Sigues breu però complet. Menys és més, però INFORMATIU.`;
+**REGLES D'OR (MOLT IMPORTANT FINS I TOT QUAN BUSQUIS A INTERNET):**
+1. Sigues ÚTIL per sobre de tot. Un estudiant necessita saber QUÈ FARÀ si cursa una carrera.
+2. Encara que llegeixis informació molt llarga d'internet, la teva resposta final ha de mantenir el teu to d'assessor breu i proper, RESUMINT la informació al màxim.
+3. MAI utilitzis asteriscos per fer negretes, mantingues text pla.
+4. Sigues breu però complet. Menys és més, però INFORMATIU.
+5. Si la pregunta no te a veure amb universitats, notes, estudis, conactes universitares, o mon academic, no ho busquis en internet`;
 
-
-async function callGroq(
+async function callGeminiWithFallback(
   messagesToSend: any[],
+  apiKeys: string[],
 ): Promise<any> {
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    throw { error: "No GROQ_API_KEY configurada" };
-  }
+  let lastError: any = null;
 
-  console.log(`Usando key: ${apiKey.slice(0, 10)}...`);
+  for (let i = 0; i < apiKeys.length; i++) {
+    const apiKey = apiKeys[i];
+    console.log(`[Intento ${i + 1}/${apiKeys.length}] Usando key: ${apiKey.slice(0, 10)}...`);
 
-  try {
- 
-     const messagesForGroq = messagesToSend.map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
+    try {
 
-    const groqResponse = await fetch(
-      `https://api.groq.com/openai/v1/chat/completions`,
-      {
-        method: "POST",
-        headers: {
-          "Authorization": `Bearer ${apiKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "llama-3.3-70b-versatile",  // Modelo en Groq
-          messages: messagesForGroq,
-          max_tokens: 3500,
+      // Inicializamos el SDK con la Key actual del bucle
+      const ai = new GoogleGenAI({ apiKey: apiKey });
+
+      const formattedContents = messagesToSend.map((msg) => ({
+        role: msg.role === "user" ? "user" : "model",
+        parts: [{ text: msg.content }],
+      }));
+
+      // Llamada usando el SDK oficial
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.1-flash-lite-preview',
+        contents: formattedContents,
+        config: {
+          systemInstruction: promptDelSistema, // El SDK maneja la estructura por ti
           temperature: 0.7,
-          top_p: 0.9,
-        }),
+          topP: 0.9,
+          maxOutputTokens: 3500,
+          // 👇 Activamos la búsqueda en Google
+          tools: [{ googleSearch: {} }],
+          safetySettings: [
+            {
+              category: "HARM_CATEGORY_HARASSMENT",
+              threshold: "BLOCK_ONLY_HIGH",  // Block few
+            },
+            {
+              category: "HARM_CATEGORY_HATE_SPEECH",
+              threshold: "BLOCK_ONLY_HIGH",  // Block few
+            },
+            {
+              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
+              threshold: "BLOCK_LOW_AND_ABOVE",  // Block most
+            },
+            {
+              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
+              threshold: "BLOCK_ONLY_HIGH",  // Block few
+            },
+          ]
+        }
+      });
+
+      console.log(`[Key ${i + 1}] ✅ Respuesta exitosa`);
+      
+      // Adaptamos la respuesta para que tu código actual no se rompa
+      return { 
+        success: true, 
+        data: {
+          candidates: [{ content: { parts: [{ text: response.text }] } }],
+          usageMetadata: { totalTokenCount: response.usageMetadata?.totalTokenCount }
+        }, 
+        keyUsed: i + 1 
+      };
+
+    } catch (e: any) {
+      // Si el error incluye "429" o "Quota Exceeded", saltamos a la siguiente key
+      if (e.message?.includes("429") || e.status === 429) {
+        console.warn(`[Key ${i + 1}] Cuota excedida. Intentando siguiente...`);
+        lastError = e;
+        continue;
       }
-    );
-
-    if (groqResponse.status === 429) {
-      const errorData = await groqResponse.json();
-      console.warn("Cuota excedida.");
-      throw errorData;
+      // Para otros errores (400, etc), también probamos con la siguiente o paramos según prefieras
+      console.error(`[Key ${i + 1}] Excepción:`, e.message);
+      lastError = e;
+      continue;
     }
-
-    if (!groqResponse.ok) {
-      const errorText = await groqResponse.text();
-      console.error("Error Groq:", errorText);
-      throw { status: groqResponse.status, message: errorText };
-    }
-
-    console.log("✅ Respuesta exitosa");
-    const data = await groqResponse.json();
-    return { success: true, data: data };
-
-  } catch (e) {
-    console.error("Excepción:", e);
-    throw e;
   }
+
+  throw { allKeysFailed: true, lastError: lastError, keysAttempted: apiKeys.length };
 }
 
 // ========== SERVIDOR ==========
@@ -150,105 +187,139 @@ Deno.serve(async (req) => {
     return new Response(null, { status: 204, headers });
   }
 
+  // GET /token - Genera token temporal
+  if (req.method === "GET" && url.pathname === "/token") {
+    // Limpiar tokens expirados
+    for (const [t, exp] of tokenValidos.entries()) {
+      if (Date.now() > exp) tokenValidos.delete(t);
+    }
+    const token = crypto.randomUUID();
+    tokenValidos.set(token, Date.now() + 30000); // 30 segundos
+    return new Response(JSON.stringify({ token }), { headers });
+  }
+
   // GET / - Status
   if (req.method === "GET") {
-    const apiKey = getApiKey();
+    const keys = getApiKeys();
     return new Response(
       JSON.stringify({
         status: "ok",
-        message: "Servidor IA actiu (Groq)",
-        keyConfigured: !!apiKey,
-        secretRequired: !!APP_SECRET,
+        message: "Servidor IA actiu (Google Gemini)",
+        keysConfigured: keys.length,
       }),
       { headers },
     );
   }
 
-  function buildContextPrompt(carreras: any[], asignaturas: string[], filtros: any, pregunta: string) {
-  return `
-DADES DELS FILTRES:
-Assignatures triades: ${asignaturas.length > 0 ? asignaturas.join(", ") : "Cap"}
-
-Filtres:
-- Poblacions: ${filtros?.poblacions?.length ? filtros.poblacions.join(", ") : "Totes"}
-- Sortida professional mínima: ${filtros?.minProf || "0"}
-- Ponderació mínima: ${filtros?.minPond || "0"}
-- Ordenació: ${filtros?.orden || "total_desc"}
-
-LLISTAT DE CARRERES FILTRADES (JSON):
-${JSON.stringify(carreras, null, 2)}
-
-PREGUNTA DE L'ESTUDIANT:
-${pregunta}
-  `;
-}
-  
   // POST / - Consulta IA
-if (req.method === "POST") {
+  if (req.method === "POST") {
 
-  const clientIp = req.headers.get("x-forwarded-for") || "IP_DESCONOCIDA";
-  if (isRateLimited(clientIp)) {
-    return new Response(JSON.stringify({ error: "Rate limit" }), { status: 429, headers });
-  }
-
-  const secretRecibido = req.headers.get("x-app-secret") || "";
-  if (APP_SECRET && secretRecibido !== APP_SECRET) {
-    return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401, headers });
-  }
-
-  const apiKey = getApiKey();
-  if (!apiKey) {
-    return new Response(JSON.stringify({ error: "Falta GROQ_API_KEY" }), { status: 500, headers });
-  }
-
-  try {
-    const body = await req.json();
-
-    const messages = body.messages || [];
-    const carreras = body.carreras || [];
-    const asignaturas = body.asignaturas || [];
-    const filtros = body.filtros || {};
-    
-    const lastUserMessage = (messages.findLast((msg: any) => msg.role === "user") || {}).content || "";
-
-    // Construim el prompt final amb dades estructurades
-    const promptUsuario = buildContextPrompt(
-      carreras,
-      asignaturas,
-      filtros,
-      lastUserMessage
-    );
-
-    const mensajesConContexto = [
-      { role: "system", content: promptDelSistema },
-      { role: "user", content: promptUsuario }
-    ];
-
-    const result = await callGroq(mensajesConContexto);
-
-    if (!result.success) {
-      return new Response(JSON.stringify({ error: "Error inesperado" }), { status: 502, headers });
+    // Rate limiting
+    const clientIp = req.headers.get("x-forwarded-for") || "IP_DESCONOCIDA";
+    if (isRateLimited(clientIp)) {
+      console.warn(`[RATE LIMIT] IP bloqueada: ${clientIp}`);
+      return new Response(
+        JSON.stringify({ error: "Has fet massa preguntes seguides. Si us plau, espera un minut." }),
+        { status: 429, headers }
+      );
     }
 
-    const data = result.data;
-    const generatedText = data.choices?.[0]?.message?.content || "Sense resposta.";
-    const htmlResponse = markdownToHTML(generatedText);
+    // ✅ Validar token temporal
+    const tokenRecibido = req.headers.get("x-app-secret") || "";
+    const expira = tokenValidos.get(tokenRecibido);
 
-    return new Response(
-      JSON.stringify([{
-        generated_text: generatedText.trim(),
-        html: htmlResponse,
-        metadata: {
-          tokens_used: data.usage?.total_tokens,
-          model: data.model,
-        },
-      }]),
-      { headers }
-    );
+    if (!expira || Date.now() > expira) {
+      console.warn("Token inválido o expirado:", tokenRecibido);
+      return new Response(
+        JSON.stringify({ error: "No autorizado" }),
+        { status: 401, headers }
+      );
+    }
 
-  } catch (e) {
-    return new Response(JSON.stringify({ error: e.message || "Error servidor" }), { status: 500, headers });
+    // Token de un solo uso
+    tokenValidos.delete(tokenRecibido);
+
+    try {
+      const body = await req.json();
+      const apiKeys = getApiKeys();
+
+      if (apiKeys.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "No hay GEMINI_API_KEY configuradas" }),
+          { status: 500, headers },
+        );
+      }
+
+      let chatMessages = body.messages;
+      if (!chatMessages) {
+        const text = body.inputs || body.prompt || "";
+        chatMessages = [{ role: "user", content: text }];
+      }
+
+      let filteredMessages = chatMessages.filter((msg: any) => msg.role !== "system");
+      if (filteredMessages.length > 40) {
+        filteredMessages = filteredMessages.slice(-40);
+      }
+
+      if (filteredMessages.length === 0) {
+        return new Response(
+          JSON.stringify({ error: "No hay mensajes para procesar" }),
+          { status: 400, headers },
+        );
+      }
+
+      let result;
+      try {
+        result = await callGeminiWithFallback(filteredMessages, apiKeys);
+      } catch (error: any) {
+        if (error.allKeysFailed) {
+          console.error("❌ TODAS LAS KEYS FALLARON", error);
+          return new Response(
+            JSON.stringify({
+              error: "Todas las claves API han excedido la cuota",
+              keysAttempted: error.keysAttempted,
+              details: error.lastError?.message || "Error desconocido",
+            }),
+            { status: 503, headers },
+          );
+        }
+        throw error;
+      }
+
+      if (!result.success) {
+        return new Response(
+          JSON.stringify({ error: "Error inesperado" }),
+          { status: 502, headers },
+        );
+      }
+
+      const data = result.data;
+      const generatedText =
+        data.candidates?.[0]?.content?.parts?.[0]?.text ||
+        "No he pogut generar una resposta.";
+      const htmlResponse = markdownToHTML(generatedText);
+
+      return new Response(
+        JSON.stringify([{
+          generated_text: generatedText.trim(),
+          html: htmlResponse,
+          metadata: {
+            tokens_used: data.usageMetadata?.totalTokenCount,
+            model: data.modelVersion,
+            keyUsed: result.keyUsed,
+          },
+        }]),
+        { headers },
+      );
+
+    } catch (e) {
+      console.error("Error servidor:", e);
+      return new Response(
+        JSON.stringify({ error: e.message }),
+        { status: 500, headers },
+      );
+    }
   }
-}
+
   return new Response("Not Found", { status: 404, headers });
 });
