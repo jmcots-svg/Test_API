@@ -85,7 +85,7 @@ import {
   HarmBlockThreshold,
   HarmCategory,
   ThinkingLevel,
-} from "npm:@google/generative-ai";
+} from "npm:@google/genai";
 
 
 const promptDelSistema = `Ets un assessor expert en orientació universitària a Catalunya. El teu objectiu és ajudar a estudiants de batxillerat de forma ÚTIL, RÀPIDA i CONCISA.
