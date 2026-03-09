@@ -93,7 +93,7 @@ const promptDelSistema = `Ets un assessor expert en orientació universitària a
 **EL TEU ROL:**
 1. Respon DIRECTAMENT a la pregunta de l'usuari.
 2. Prioritat en la cerca d'informació:
-   a. Primer, utilitza les dades que et proporciono directament en la conversa (llistat proporcionat).
+   a. Primer, utilitza les dades que et proporciono directament, no la dels PDFs.
    b. Segon, consulta els documents PDF adjunts (a través de la funció urlContext) si la informació no es troba en les dades directes.
    c. Finalment, si la informació no està disponible en cap de les fonts anteriors (dades directes o PDFs), fes una cerca a Internet (Google Search).
 3. Si l'usuari pregunta sobre contingut d'una carrera:
@@ -374,6 +374,50 @@ Deno.serve(async (req) => {
           { status: 400, headers },
         );
       }
+
+        // Pas 1: Preparar els missatges de text per al model
+        let messagesForGemini = filteredMessages.map((msg: any) => ({
+            role: msg.role === "user" ? "user" : "model",
+            parts: [{ text: msg.content }]
+        }));
+
+        // Pas 2: Analitzar la última pregunta de l'usuari per decidir si s'adjunten els PDFs
+        const lastUserMessageText = filteredMessages[filteredMessages.length - 1]?.content || "";
+        const pdfKeywords = [
+            "notes", "graus", "temari", "pla d'estudis", "universitat", "carrera",
+            "horaris", "preus", "crèdits", "professors", "assignatures",
+            "matricula", "expedient", "admision", "puntuacion", "ponderaciones"
+        ]; // Afegeix més paraules clau rellevants
+
+        // Determina si la pregunta conté paraules clau relacionades amb el contingut dels PDFs
+        const isPdfRelated = pdfKeywords.some(keyword =>
+            lastUserMessageText.toLowerCase().includes(keyword.toLowerCase())
+        );
+
+        // Si la pregunta és rellevant per als PDFs, adjuntar les URLs
+        if (isPdfRelated) {
+            console.log("➡️ La pregunta sembla relacionada amb PDFs. Adjuntant URLs.");
+            const pdfUrls = getPdfUrls();
+            const urlParts = pdfUrls.map(url => ({
+                fileData: {
+                    mimeType: "application/pdf",
+                    fileUri: url,
+                }
+            }));
+
+            // Troba el missatge d'usuari més recent i afegeix-hi les URLs dels PDFs
+            for (let i = messagesForGemini.length - 1; i >= 0; i--) {
+                if (messagesForGemini[i].role === "user") {
+                    messagesForGemini[i].parts.push(...urlParts);
+                    break; // Un cop afegit al darrer missatge de l'usuari, sortir del bucle
+                }
+            }
+        } else {
+            console.log("➡️ La pregunta NO sembla relacionada amb PDFs. No s'adjunten URLs.");
+        }
+
+        // --- FINAL DE LA LÒGICA PER A LA INCLUSIÓ CONDICIONAL DELS PDFs
+
 
       let result;
       try {
