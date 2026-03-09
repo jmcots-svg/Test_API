@@ -154,8 +154,10 @@ import {
   HarmBlockThreshold,
   HarmCategory,
   ThinkingLevel,
-  GoogleAIFileManager,
 } from "npm:@google/genai";
+
+// Import separado para File Manager
+import { GoogleAIFileManager } from "npm:@google/geneai";
 
 const promptDelSistema = `Ets un assessor expert en orientació universitària a Catalunya. El teu objectiu és ajudar a estudiants de batxillerat de forma ÚTIL, RÀPIDA i CONCISA.
 
