@@ -83,46 +83,19 @@
             margin: 8px 0;
         }
 				
-		/* PONDERACIONES DESGLOSE */
-		.ponderaciones-desglose {
-			background: linear-gradient(135deg, #f5f7fa 0%, #f0f4f8 100%);
-			padding: 10px;
-			border-radius: 6px;
-			border-left: 4px solid var(--secondary);
-			margin-top: 10px;
+		/* PONDERACIONES MINIMALISTA */
+		
+		.pond-line {
+			font-size: 0.75em;
+			color: #888;
+			margin-top: 6px;
+			line-height: 1.4;
 		}
-
-		.ponderaciones-grid {
-			display: flex;
-			flex-wrap: wrap;
-			gap: 8px;
-		}
-
-		.ponderacion-item {
-			display: inline-flex;
-			align-items: center;
-			gap: 6px;
-			background: white;
-			padding: 6px 10px;
-			border-radius: 5px;
-			border: 1px solid #ddd;
-			font-size: 0.8em;
-			box-shadow: 0 2px 4px rgba(0,0,0,0.05);
-		}
-
-		.ponderacion-item strong {
-			color: var(--dark);
+		.pond-line span {
+			color: var(--secondary);
 			font-weight: 600;
 		}
 
-		.ponderacion-valor {
-			background: linear-gradient(135deg, var(--secondary), var(--primary));
-			color: white;
-			padding: 2px 8px;
-			border-radius: 4px;
-			font-weight: bold;
-			font-size: 0.9em;
-		}
 
 		/* Responsive */
 		@media (max-width: 768px) {
@@ -450,15 +423,10 @@ function actualizarTodo() {
     document.getElementById('txtContador').innerText = filtrados.length;
     
     tbody.innerHTML = filtrados.map(r => {
-        const desglosePond = Object.entries(r.ponderaciones)
-            .filter(([_, val]) => val > 0)
-            .map(([materia, valor]) => `
-                <span class="ponderacion-item">
-                    <strong>${materia}</strong>
-                    <span class="ponderacion-valor">${valor.toFixed(2)}</span>
-                </span>
-            `)
-            .join('');
+		const desglosePond = Object.entries(r.ponderaciones)
+			.filter(([_, val]) => val > 0)
+			.map(([materia, valor]) => `${materia} <span>${valor.toFixed(2)}</span>`)
+			.join(' · ');
         
         return `
             <tr>
@@ -468,12 +436,7 @@ function actualizarTodo() {
                     <div style="font-size:0.85em; color:#666;">${r.univ}</div>
                     <div><span class="tag">📍 ${r.pNom}</span><span class="tag">📝 Nota: ${r.nota.toFixed(3)}</span></div>
                     ${desglosePond ? `
-                        <div class="ponderaciones-desglose">
-                            <span style="font-size:0.75em; font-weight:bold; color:#666; display:block; margin-top:8px; margin-bottom:6px;">📊 Ponderacions per matèria:</span>
-                            <div class="ponderaciones-grid">
-                                ${desglosePond}
-                            </div>
-                        </div>
+						${desglosePond ? `<div class="pond-line">Pond: ${desglosePond}</div>` : ''}
                     ` : ''}
                 </td>
                 <td class="score-big">${r.total.toFixed(1).replace('.', ',')}</td>
