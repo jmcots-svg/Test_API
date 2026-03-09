@@ -15,16 +15,22 @@ const ALLOWED_ORIGINS = [
 // Cache para PDFs subidos
 const pdfCache = new Map<string, { uri: string, uploadTime: number }>();
 
-// Función para obtener las URLs de los PDFs
+// Función para obtener las URLs de los PDFs (MEJORADA)
 function getPdfUrls(): string[] {
   const urls = [];
   const grausUrl = Deno.env.get("PDF_URL_graus");
   const notasUrl = Deno.env.get("PDF_URL_notas");
   
-  if (grausUrl) urls.push(grausUrl);
-  if (notasUrl) urls.push(notasUrl);
+  if (grausUrl && grausUrl.trim()) {
+    urls.push(grausUrl.trim());
+  }
+  if (notasUrl && notasUrl.trim()) {
+    urls.push(notasUrl.trim());
+  }
   
   console.log(`PDFs configurados: ${urls.length}`);
+  console.log(`PDF graus: ${grausUrl ? 'SÍ' : 'NO'}`);
+  console.log(`PDF notes: ${notasUrl ? 'SÍ' : 'NO'}`);
   return urls;
 }
 
