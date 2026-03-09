@@ -119,6 +119,10 @@ async function callGeminiWithFallback(
 ): Promise<any> {
   let lastError: any = null;
 
+  // Obtener URLs de los PDFs
+  const pdfUrls = getPdfUrls();
+  console.log(`📚 PDFs disponibles: ${pdfUrls.length}`);
+
   const model1 = 'gemini-2.5-flash';
   const model2 = 'gemini-3.1-flash-lite-preview';
 
@@ -142,16 +146,41 @@ async function callGeminiWithFallback(
       try {
         const ai = new GoogleGenAI({ apiKey: apiKey });
 
-        const formattedContents = messagesToSend.map((msg) => ({
-          role: msg.role === "user" ? "user" : "model",
-          parts: [{ text: msg.content }],
+        // 🔥 Construir parts con los PDFs para el primer mensaje del usuario
+        const urlParts = pdfUrls.map(url => ({
+          fileData: {
+            mimeType: "application/pdf",
+            fileUri: url,
+          }
         }));
-		
+
+        // Construir mensajes incluyendo los PDFs en los mensajes del usuario
+        const formattedContents = messagesToSend.map((msg: any) => {
+          if (msg.role === "user") {
+            return {
+              role: "user",
+              parts: [
+                ...urlParts,           // ← PDFs adjuntos
+                { text: msg.content }, // ← Texto del usuario
+              ]
+            };
+          }
+          return {
+            role: "model",
+            parts: [{ text: msg.content }],
+          };
+        });
+
+        console.log(`📎 Adjuntando ${pdfUrls.length} PDFs a cada mensaje de usuario`);
+
         const response = await ai.models.generateContent({
           model: modelToUse,
           contents: formattedContents,
           config: {
-            systemInstruction: promptDelSistema,
+            systemInstruction: promptDelSistema +
+              (pdfUrls.length > 0 ?
+                "\n\n**DOCUMENTS ADJUNTS IMPORTANTS**: Tens accés als documents PDF oficials amb informació actualitzada sobre ponderacions i notes de tall universitàries a Catalunya. Utilitza SEMPRE aquesta informació quan l'usuari pregunti sobre notes d'accés, ponderacions o dades específiques d'universitats catalanes. Prioritza les dades d'aquests documents per sobre del teu coneixement general." :
+                ""),
             temperature: 0.7,
             topP: 0.9,
             maxOutputTokens: 3500,
