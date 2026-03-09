@@ -619,6 +619,13 @@ window.onclick = function(e) {
         document.getElementById('poblacionsList').style.display = 'none';
     } 
 }
+// Enviar consulta IA con Enter (Shift+Enter para salto de línea)
+document.getElementById('input-ia').addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        enviarConsultaIA();
+    }
+});
 </script>
 </body>
 </html>
