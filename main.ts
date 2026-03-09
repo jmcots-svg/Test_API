@@ -203,19 +203,21 @@ function findOriginalUserQuestion(messages: any[]): string | null {
 async function callGeminiWithFallback(
   messagesToSend: any[],
   apiKeys: string[],
+  usePdfs: boolean = false,  // ← NUEVO PARÁMETRO
 ): Promise<any> {
   let lastError: any = null;
 
   const model1 = 'gemini-2.5-flash';
   const model2 = 'gemini-3.1-flash-lite-preview';
 
-  const tools1 = [
-    { googleSearch: {} },
-    { urlContext: {} },
-  ];
-  const tools2 = [
-    { urlContext: {} },
-  ];
+  // 🔥 Solo incluir urlContext si realmente hay PDFs adjuntos
+  const tools1 = usePdfs
+    ? [{ googleSearch: {} }, { urlContext: {} }]
+    : [{ googleSearch: {} }];
+
+  const tools2 = usePdfs
+    ? [{ urlContext: {} }]
+    : [];
 
   for (let vuelta = 0; vuelta < 2; vuelta++) {
     for (let i = 0; i < apiKeys.length; i++) {
@@ -224,23 +226,29 @@ async function callGeminiWithFallback(
       const modelToUse = vuelta === 0 ? model1 : model2;
       const toolsToUse = vuelta === 0 ? tools1 : tools2;
 
-      console.log(`[Intento ${i + 1}/${apiKeys.length}] Key: ${apiKey.slice(0, 10)}... | Modelo: ${modelToUse}`);
+      console.log(`[Intento ${i + 1}/${apiKeys.length}] Key: ${apiKey.slice(0, 10)}... | Modelo: ${modelToUse} | PDFs: ${usePdfs}`);
 
       try {
         const ai = new GoogleGenAI({ apiKey: apiKey });
 
         const contentsForGemini = messagesToSend;
 
+        // 🔥 Solo pasar tools si hay alguna herramienta configurada
+        const configObj: any = {
+          systemInstruction: promptDelSistema,
+          temperature: 0.7,
+          topP: 0.9,
+          maxOutputTokens: 3500,
+        };
+
+        if (toolsToUse.length > 0) {
+          configObj.tools = toolsToUse;
+        }
+
         const response = await ai.models.generateContent({
           model: modelToUse,
           contents: contentsForGemini,
-          config: {
-            systemInstruction: promptDelSistema,
-            temperature: 0.7,
-            topP: 0.9,
-            maxOutputTokens: 3500,
-            tools: toolsToUse,
-          }
+          config: configObj,
         });
 
         console.log(`[Key ${i + 1}] ✅ Respuesta exitosa con modelo: ${modelToUse}`);
