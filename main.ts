@@ -177,8 +177,8 @@ async function callGeminiWithFallback(
     for (let i = 0; i < apiKeys.length; i++) {
       const apiKey = apiKeys[i];
 
-      const modelToUse = vuelta === 0 ? model2: model1
-      const toolsToUse = vuelta === 0 ? tools2: tools1
+      const modelToUse = vuelta === 0 ? model1: model2
+      const toolsToUse = vuelta === 0 ? tools1: tools2
 
       console.log(`[Intento ${i + 1}/${apiKeys.length}] Key: ${apiKey.slice(0, 10)}... | Modelo: ${modelToUse}`);
 
