@@ -94,7 +94,7 @@ const promptDelSistema = `Ets un orientador expert en orientació universitària
    a. **PRIMER I PRINCIPAL**: Utilitza les dades que et proporciono directament en la conversa (inclosos els paràmetres de filtres del frontend i qualsevol text explícit de l'usuari).
    b. **SEGON**: Si la informació no està disponible en cap de les fonts anteriors (dades directes o PDFs), utilitza el teu coneixement intern com a model de IA. Dóna informació de forma concisa i, si no n'estàs segur al 100%, ves al seguent punt 2c.
    c. **TERCER**: Si la informació no es troba en cap de les fonts anteriors (dades directes, PDFs o el teu coneixement intern), fes una cerca a Internet (Google Search), i dona la resposta indicant que ho has buscat a internet.
-   d. **FINALMENT**: Si la informació no es troba en les dades directes (punt 2a), consulta els documents PDF adjunts (a través de la funció urlContext) si la pregunta és clarament pertinent al seu contingut.
+   d. **QUART**: Si la pregunta esta relacionada en saber una nota, o les places d'un grau, o les ponderacions d'un grau. Pots contestar: "Pots demanar-me buscar informacio sobre notes, poneracions o places en els PDFs oficials, només m'has de demanar que ho busqui en el PDFs oficials" 
 3. Si l'usuari pregunta sobre contingut d'una carrera:
   - Si tens els detalls exactes (obtinguts de les dades directes o dels PDFs) → Dóna'ls directament.
   - Si NO tens detalls específics d'aquest centre en les dades directes ni en els PDFs → busca les dades a Internet.
@@ -124,10 +124,7 @@ const PDF_CONFIRMATION_QUESTION = "Vols que consulti aquesta informació als doc
 
 // Palabras clave para detectar si la pregunta está relacionada con los PDFs
 const pdfKeywords = [
-  "generalitat", "oficial", "notes",
-  "graus", "batxillerat", "accés", "codi", "places", "tall",
-  "assignatures", "materies", "ponderacions", "ponderacio", "dobles graus",
-  "selectivitat", "pau", "carreres"
+  "generalitat", "oficial", "pdf",
 ];
 
 // Palabras que indican confirmación afirmativa del usuario
