@@ -384,13 +384,16 @@ Deno.serve(async (req) => {
             parts: [{ text: msg.content }]
         }));
 
+
         // Pas 2: Analitzar la última pregunta de l'usuari per decidir si s'adjunten els PDFs
-        const lastUserMessageText = filteredMessages[filteredMessages.length - 1]?.content || "";
-        const pdfKeywords = [
-            "notes", "graus", "temari", "pla d'estudis", "universitat", "carrera",
-            "horaris", "preus", "crèdits", "professors", "assignatures",
-            "matricula", "expedient", "admision", "puntuacion", "ponderaciones"
-        ]; // Afegeix més paraules clau rellevants
+
+	  const lastUserMessage = filteredMessages[filteredMessages.length - 1];
+      const lastUserMessageText = lastUserMessage ? lastUserMessage.content || "" : "";
+
+      const pdfKeywords = [
+          "notes d'accés", "graus universitaris", "universitat", "carrera", "notes", "graus",
+          "assignatures", "materies", "ponderacions", "ponderacio", "dobles graus", "selectivitat", "pau", "carreres", "oficial"
+      ];  // Afegeix més paraules clau rellevants
 
         // Determina si la pregunta conté paraules clau relacionades amb el contingut dels PDFs
         const isPdfRelated = pdfKeywords.some(keyword =>
@@ -398,23 +401,28 @@ Deno.serve(async (req) => {
         );
 
         // Si la pregunta és rellevant per als PDFs, adjuntar les URLs
-        if (isPdfRelated) {
-            console.log("➡️ La pregunta sembla relacionada amb PDFs. Adjuntant URLs.");
-            const pdfUrls = getPdfUrls();
-            const urlParts = pdfUrls.map(url => ({
-                fileData: {
-                    mimeType: "application/pdf",
-                    fileUri: url,
-                }
-            }));
+      if (isPdfRelated) {
+          console.log("➡️ La pregunta sembla relacionada amb PDFs. Adjuntant URLs a TOTS els missatges d'usuari.");
+          const pdfUrls = getPdfUrls();
+          if (pdfUrls.length > 0) {
+              const urlParts = pdfUrls.map(url => ({
+                  fileData: {
+                      mimeType: "application/pdf",
+                      fileUri: url,
+                  }
+              }));
 
-            // Troba el missatge d'usuari més recent i afegeix-hi les URLs dels PDFs
-            for (let i = messagesForGemini.length - 1; i >= 0; i--) {
-                if (messagesForGemini[i].role === "user") {
-                    messagesForGemini[i].parts.push(...urlParts);
-                    break; // Un cop afegit al darrer missatge de l'usuari, sortir del bucle
-                }
-            }
+              // 🔥 MODIFICACIÓ AQUÍ: Recorre TOTS els missatges i afegeix les URLs als missatges d'usuari 🔥
+              for (let i = 0; i < messagesForGemini.length; i++) {
+                  if (messagesForGemini[i].role === "user") {
+                      // Assegura't que l'array 'parts' existeix i afegeix-hi les urlParts
+                      if (!messagesForGemini[i].parts) {
+                          messagesForGemini[i].parts = [];
+                      }
+                      messagesForGemini[i].parts.push(...urlParts);
+                  }
+              }
+          }
         } else {
             console.log("➡️ La pregunta NO sembla relacionada amb PDFs. No s'adjunten URLs.");
         }
