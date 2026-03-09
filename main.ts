@@ -71,15 +71,14 @@ function isRateLimited(ip: string): boolean {
 
 function markdownToHTML(markdown: string): string {
   let html = markdown
-    .replace(/\*\*/g, '') // Elimina asteriscos dobles (negritas)
-    .replace(/\*/g, '')   // Elimina asteriscos simples (cursivas)
+    .replace(/\*\*/g, '')
+    .replace(/\*/g, '')
     .replace(/\n\n/g, '</p><p>')
     .replace(/\n/g, '<br>');
   return `<div class="ai-response"><p>${html}</p></div>`;
 }
 
 
-// Importamos el SDK oficial desde npm
 import {
   GoogleGenAI,
   HarmBlockThreshold,
@@ -117,51 +116,96 @@ const promptDelSistema = `Ets un assessor expert en orientació universitària a
 5. Si la pregunta no te a veure amb universitats, notes, estudis, conactes universitares, o mon academic, no ho busquis en internet`;
 
 
+// ========== CONSTANTES PARA LA LÓGICA DE CONFIRMACIÓN PDF ==========
+
+// Este es el texto EXACTO que el backend devuelve cuando pide confirmación.
+// Lo usamos para detectar en el historial si estamos esperando confirmación.
+const PDF_CONFIRMATION_QUESTION = "Vols que consulti aquesta informació als documents PDF oficials que publica la Generalitat de Catalunya? (Sí / No)";
+
+// Palabras clave para detectar si la pregunta está relacionada con los PDFs
+const pdfKeywords = [
+  "notes d'accés", "graus universitaris", "universitat", "carrera", "notes",
+  "graus", "batxillerat", "accés", "codi", "places", "tall",
+  "assignatures", "materies", "ponderacions", "ponderacio", "dobles graus",
+  "selectivitat", "pau", "carreres", "oficial"
+];
+
+// Palabras que indican confirmación afirmativa del usuario
+const confirmationYesWords = [
+  "sí", "si", "yes", "ok", "vale", "d'acord", "dacord", "endavant",
+  "perfecte", "va", "va bé", "sí, si us plau", "si si", "clar", "clar que sí",
+  "per favor", "afirmatiu", "confirmo"
+];
+
+// Palabras que indican rechazo
+const confirmationNoWords = [
+  "no", "nop", "no gràcies", "no gracies", "no cal", "deixa",
+  "no fa falta", "passa", "cancel", "res"
+];
+
+/**
+ * Comprueba si el último mensaje del modelo en el historial
+ * es la pregunta de confirmación de PDFs.
+ */
+function isAwaitingPdfConfirmation(messages: any[]): boolean {
+  // Buscar el último mensaje del modelo (assistant/model)
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (messages[i].role === "assistant" || messages[i].role === "model") {
+      const content = (messages[i].content || "").trim();
+      return content === PDF_CONFIRMATION_QUESTION;
+    }
+  }
+  return false;
+}
+
+/**
+ * Detecta si el texto del usuario es una confirmación afirmativa.
+ */
+function isUserConfirmingYes(text: string): boolean {
+  const normalized = text.toLowerCase().trim().replace(/[.,!?¿¡]/g, "").trim();
+  return confirmationYesWords.some(word => normalized === word || normalized.startsWith(word));
+}
+
+/**
+ * Detecta si el texto del usuario es un rechazo.
+ */
+function isUserConfirmingNo(text: string): boolean {
+  const normalized = text.toLowerCase().trim().replace(/[.,!?¿¡]/g, "").trim();
+  return confirmationNoWords.some(word => normalized === word || normalized.startsWith(word));
+}
+
+/**
+ * Busca la última pregunta del usuario ANTES de la pregunta de confirmación del modelo.
+ * Es decir, la pregunta original que desencadenó la confirmación.
+ */
+function findOriginalUserQuestion(messages: any[]): string | null {
+  // Buscar hacia atrás: primero encontrar la confirmación del modelo,
+  // luego el mensaje del usuario justo antes
+  let foundConfirmation = false;
+  for (let i = messages.length - 1; i >= 0; i--) {
+    const msg = messages[i];
+    if (!foundConfirmation) {
+      if ((msg.role === "assistant" || msg.role === "model") &&
+          (msg.content || "").trim() === PDF_CONFIRMATION_QUESTION) {
+        foundConfirmation = true;
+        continue;
+      }
+    } else {
+      if (msg.role === "user") {
+        return msg.content || "";
+      }
+    }
+  }
+  return null;
+}
+
+
 async function callGeminiWithFallback(
   messagesToSend: any[],
   apiKeys: string[],
 ): Promise<any> {
   let lastError: any = null;
 
-  // Obtener URLs de los PDFs
- // const pdfUrls = getPdfUrls();
-  //console.log(`📚 PDFs disponibles: ${pdfUrls.length}`);
-  
-    // 🔥 CONSTRUIR LOS CONTENIDOS UNA SOLA VEZ, FUERA DE LOS BUCLES
-  //const urlParts = pdfUrls.map(url => ({
-    //fileData: {
-     // mimeType: "application/pdf",
-     // fileUri: url,
-   // }
-  //}));
-  
-   // let pdfAttached = false; // ← AQUÍ, fuera de los bucles for
-	
-	  //const formattedContents = messagesToSend.map((msg: any) => {
-    //if (msg.role === "user" && !pdfAttached && urlParts.length > 0) {
-     // pdfAttached = true;
-     // return {
-       // role: "user",
-        //parts: [
-         // ...urlParts,
-         // { text: msg.content },
-        //]
-     // };
-   // }
-   // if (msg.role === "user") {
-     // return {
-        //role: "user",
-       // parts: [{ text: msg.content }],
-      //};
-    //}
-    //return {
-      //role: "model",
-      //parts: [{ text: msg.content }],
-    //};
-  //});
-
-  //console.log(`📎 PDFs adjuntados al primer mensaje. Total mensajes: ${formattedContents.length}`);
-  
   const model1 = 'gemini-2.5-flash';
   const model2 = 'gemini-3.1-flash-lite-preview';
 
@@ -177,27 +221,22 @@ async function callGeminiWithFallback(
     for (let i = 0; i < apiKeys.length; i++) {
       const apiKey = apiKeys[i];
 
-      const modelToUse = vuelta === 0 ? model1: model2
-      const toolsToUse = vuelta === 0 ? tools1: tools2
+      const modelToUse = vuelta === 0 ? model1 : model2;
+      const toolsToUse = vuelta === 0 ? tools1 : tools2;
 
       console.log(`[Intento ${i + 1}/${apiKeys.length}] Key: ${apiKey.slice(0, 10)}... | Modelo: ${modelToUse}`);
 
       try {
         const ai = new GoogleGenAI({ apiKey: apiKey });
-		
-		const contentsForGemini = messagesToSend;
-		//const formattedContents = messagesToSend.map((msg) => ({
-		//	role: msg.role === "user" ? "user" : "model",
-		//	parts: msg.parts ? msg.parts : [{ text: msg.content }], // S'assegura que si ja té 'parts' (amb PDFs), les mantingui.
-		//}));
-		
+
+        const contentsForGemini = messagesToSend;
+
         const response = await ai.models.generateContent({
           model: modelToUse,
-          //contents: formattedContents,
-		  contents: contentsForGemini,
+          contents: contentsForGemini,
           config: {
-				systemInstruction: promptDelSistema,
-						temperature: 0.7,
+            systemInstruction: promptDelSistema,
+            temperature: 0.7,
             topP: 0.9,
             maxOutputTokens: 3500,
             tools: toolsToUse,
@@ -256,22 +295,21 @@ Deno.serve(async (req) => {
     return new Response(null, { status: 204, headers });
   }
 
-  // GET /token - Genera token temporal
+  // GET /token
   if (req.method === "GET" && url.pathname === "/token") {
-    // Limpiar tokens expirados
     for (const [t, exp] of tokenValidos.entries()) {
       if (Date.now() > exp) tokenValidos.delete(t);
     }
     const token = crypto.randomUUID();
-    tokenValidos.set(token, Date.now() + 30000); // 30 segundos
+    tokenValidos.set(token, Date.now() + 30000);
     return new Response(JSON.stringify({ token }), { headers });
   }
-  
+
   // ENDPOINT DE PRUEBA PDFs
   if (req.method === "GET" && url.pathname === "/test-pdfs") {
     const grausUrl = Deno.env.get("PDF_URL_graus");
     const notesUrl = Deno.env.get("PDF_URL_notes");
-    
+
     return new Response(
       JSON.stringify({
         message: "Debug de variables PDF",
@@ -284,7 +322,7 @@ Deno.serve(async (req) => {
           },
           PDF_URL_notes: {
             exists: !!notesUrl,
-            value: notesUrl || "UNDEFINED", 
+            value: notesUrl || "UNDEFINED",
             length: notesUrl ? notesUrl.length : 0,
             trimmed: notesUrl ? notesUrl.trim() : "N/A"
           }
@@ -322,13 +360,10 @@ Deno.serve(async (req) => {
     );
   }
 
-
-
   // POST / - Consulta IA
   if (req.method === "POST") {
     console.log(`🔥 POST recibido en: ${url.pathname}`);
 
-    // Rate limiting
     const clientIp = req.headers.get("x-forwarded-for") || "IP_DESCONOCIDA";
     if (isRateLimited(clientIp)) {
       console.warn(`[RATE LIMIT] IP bloqueada: ${clientIp}`);
@@ -338,7 +373,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // ✅ Validar token temporal
     const tokenRecibido = req.headers.get("x-app-secret") || "";
     const expira = tokenValidos.get(tokenRecibido);
 
@@ -350,7 +384,6 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Token de un solo uso
     tokenValidos.delete(tokenRecibido);
 
     try {
@@ -382,62 +415,225 @@ Deno.serve(async (req) => {
         );
       }
 
-        // Pas 1: Preparar els missatges de text per al model
-        let messagesForGemini = filteredMessages.map((msg: any) => ({
+      // ============================================================
+      // 🔥 NUEVA LÓGICA DE CONFIRMACIÓN PARA PDFs 🔥
+      // ============================================================
+
+      const lastUserMessage = filteredMessages[filteredMessages.length - 1];
+      const lastUserMessageText = lastUserMessage
+        ? lastUserMessage.content || ""
+        : "";
+
+      // CASO A: El modelo preguntó "¿Quieres consultar los PDFs?" y el usuario responde
+      const awaitingConfirmation = isAwaitingPdfConfirmation(filteredMessages);
+
+      if (awaitingConfirmation) {
+        // El usuario está respondiendo a nuestra pregunta de confirmación
+
+        if (isUserConfirmingYes(lastUserMessageText)) {
+          // ✅ Usuario dijo SÍ → Cargar PDFs y reenviar la pregunta original
+          console.log("✅ Usuario CONFIRMA consultar PDFs oficiales.");
+
+          const originalQuestion = findOriginalUserQuestion(filteredMessages);
+
+          if (!originalQuestion) {
+            console.warn("⚠️ No se encontró la pregunta original. Procesando normalmente.");
+          }
+
+          // Construir mensajes para Gemini:
+          // Eliminamos del historial la pregunta de confirmación y la respuesta "sí"
+          // y reenviamos la pregunta original CON los PDFs adjuntos
+          const messagesWithoutConfirmation = filteredMessages.filter((msg: any) => {
+            const content = (msg.content || "").trim();
+            // Quitar la pregunta de confirmación del modelo
+            if ((msg.role === "assistant" || msg.role === "model") &&
+                content === PDF_CONFIRMATION_QUESTION) {
+              return false;
+            }
+            return true;
+          });
+
+          // Quitar también la respuesta "sí/no" del usuario (último mensaje)
+          messagesWithoutConfirmation.pop();
+
+          let messagesForGemini = messagesWithoutConfirmation.map((msg: any) => ({
             role: msg.role === "user" ? "user" : "model",
             parts: [{ text: msg.content }]
-        }));
+          }));
 
-
-        // Pas 2: Analitzar la última pregunta de l'usuari per decidir si s'adjunten els PDFs
-
-	  const lastUserMessage = filteredMessages[filteredMessages.length - 1];
-      const lastUserMessageText = lastUserMessage ? lastUserMessage.content || "" : "";
-
-      const pdfKeywords = [
-          "notes d'accés", "graus universitaris", "universitat", "carrera", "notes", "graus", "batxillerat", "accés", "codi", "places", "tall",
-          "assignatures", "materies", "ponderacions", "ponderacio", "dobles graus", "selectivitat", "pau", "carreres", "oficial"
-      ];  // Afegeix més paraules clau rellevants
-
-        // Determina si la pregunta conté paraules clau relacionades amb el contingut dels PDFs
-        const isPdfRelated = pdfKeywords.some(keyword =>
-            lastUserMessageText.toLowerCase().includes(keyword.toLowerCase())
-        );
-
-        // Si la pregunta és rellevant per als PDFs, adjuntar les URLs
-      if (isPdfRelated) {
-          console.log("➡️ La pregunta sembla relacionada amb PDFs. Adjuntant URLs a TOTS els missatges d'usuari.");
+          // Adjuntar PDFs a TODOS los mensajes de usuario
           const pdfUrls = getPdfUrls();
           if (pdfUrls.length > 0) {
-              const urlParts = pdfUrls.map(url => ({
-                  fileData: {
-                      mimeType: "application/pdf",
-                      fileUri: url,
-                  }
-              }));
-
-              // 🔥 MODIFICACIÓ AQUÍ: Recorre TOTS els missatges i afegeix les URLs als missatges d'usuari 🔥
-              for (let i = 0; i < messagesForGemini.length; i++) {
-                  if (messagesForGemini[i].role === "user") {
-                      // Assegura't que l'array 'parts' existeix i afegeix-hi les urlParts
-                      if (!messagesForGemini[i].parts) {
-                          messagesForGemini[i].parts = [];
-                      }
-                      messagesForGemini[i].parts.push(...urlParts);
-                  }
+            const urlParts = pdfUrls.map(pdfUrl => ({
+              fileData: {
+                mimeType: "application/pdf",
+                fileUri: pdfUrl,
               }
+            }));
+
+            for (let i = 0; i < messagesForGemini.length; i++) {
+              if (messagesForGemini[i].role === "user") {
+                messagesForGemini[i].parts.push(...urlParts);
+              }
+            }
+            console.log(`📎 PDFs adjuntados. Total URLs: ${pdfUrls.length}`);
           }
-        } else {
-            console.log("➡️ La pregunta NO sembla relacionada amb PDFs. No s'adjunten URLs.");
+
+          // Llamar a Gemini con los PDFs
+          let result;
+          try {
+            result = await callGeminiWithFallback(messagesForGemini, apiKeys);
+          } catch (error: any) {
+            if (error.allKeysFailed) {
+              console.error("❌ TODAS LAS KEYS FALLARON", error);
+              return new Response(
+                JSON.stringify({
+                  error: "Todas las claves API han excedido la cuota",
+                  keysAttempted: error.keysAttempted,
+                  details: error.lastError?.message || "Error desconocido",
+                }),
+                { status: 503, headers },
+              );
+            }
+            throw error;
+          }
+
+          if (!result.success) {
+            return new Response(
+              JSON.stringify({ error: "Error inesperado" }),
+              { status: 502, headers },
+            );
+          }
+
+          const data = result.data;
+          const generatedText =
+            data.candidates?.[0]?.content?.parts?.[0]?.text ||
+            "No he pogut generar una resposta.";
+          const htmlResponse = markdownToHTML(generatedText);
+
+          return new Response(
+            JSON.stringify([{
+              generated_text: generatedText.trim(),
+              html: htmlResponse,
+              metadata: {
+                tokens_used: data.usageMetadata?.totalTokenCount,
+                model: data.modelVersion,
+                keyUsed: result.keyUsed,
+                pdfConsulted: true,
+              },
+            }]),
+            { headers },
+          );
+
+        } else if (isUserConfirmingNo(lastUserMessageText)) {
+          // ❌ Usuario dijo NO → Responder sin PDFs
+          console.log("❌ Usuario RECHAZA consultar PDFs. Respondiendo sin PDFs.");
+
+          const originalQuestion = findOriginalUserQuestion(filteredMessages);
+
+          // Eliminar confirmación e historial de la pregunta de confirmación
+          const messagesWithoutConfirmation = filteredMessages.filter((msg: any) => {
+            const content = (msg.content || "").trim();
+            if ((msg.role === "assistant" || msg.role === "model") &&
+                content === PDF_CONFIRMATION_QUESTION) {
+              return false;
+            }
+            return true;
+          });
+          messagesWithoutConfirmation.pop(); // Quitar el "no" del usuario
+
+          let messagesForGemini = messagesWithoutConfirmation.map((msg: any) => ({
+            role: msg.role === "user" ? "user" : "model",
+            parts: [{ text: msg.content }]
+          }));
+
+          // Sin PDFs, llamar directamente
+          let result;
+          try {
+            result = await callGeminiWithFallback(messagesForGemini, apiKeys);
+          } catch (error: any) {
+            if (error.allKeysFailed) {
+              return new Response(
+                JSON.stringify({
+                  error: "Todas las claves API han excedido la cuota",
+                  keysAttempted: error.keysAttempted,
+                  details: error.lastError?.message || "Error desconocido",
+                }),
+                { status: 503, headers },
+              );
+            }
+            throw error;
+          }
+
+          if (!result.success) {
+            return new Response(
+              JSON.stringify({ error: "Error inesperado" }),
+              { status: 502, headers },
+            );
+          }
+
+          const data = result.data;
+          const generatedText =
+            data.candidates?.[0]?.content?.parts?.[0]?.text ||
+            "No he pogut generar una resposta.";
+          const htmlResponse = markdownToHTML(generatedText);
+
+          return new Response(
+            JSON.stringify([{
+              generated_text: generatedText.trim(),
+              html: htmlResponse,
+              metadata: {
+                tokens_used: data.usageMetadata?.totalTokenCount,
+                model: data.modelVersion,
+                keyUsed: result.keyUsed,
+                pdfConsulted: false,
+              },
+            }]),
+            { headers },
+          );
+
         }
+        // Si no es ni sí ni no, caerá al flujo normal (el usuario dijo otra cosa)
+        console.log("🤔 Respuesta ambigua a la confirmación. Procesando como pregunta normal.");
+      }
 
-        // --- FINAL DE LA LÒGICA PER A LA INCLUSIÓ CONDICIONAL DELS PDFs
+      // CASO B: Pregunta nueva del usuario - comprobar si contiene palabras clave de PDFs
+      const isPdfRelated = pdfKeywords.some(keyword =>
+        lastUserMessageText.toLowerCase().includes(keyword.toLowerCase())
+      );
 
+      if (isPdfRelated && !awaitingConfirmation) {
+        // 🔔 La pregunta es relevante para PDFs → PREGUNTAR AL USUARIO
+        console.log("🔔 Pregunta relacionada con PDFs detectada. Preguntando al usuario...");
+
+        const htmlResponse = markdownToHTML(PDF_CONFIRMATION_QUESTION);
+
+        return new Response(
+          JSON.stringify([{
+            generated_text: PDF_CONFIRMATION_QUESTION,
+            html: htmlResponse,
+            metadata: {
+              tokens_used: 0,
+              model: "confirmation-prompt",
+              keyUsed: 0,
+              awaitingPdfConfirmation: true,
+            },
+          }]),
+          { headers },
+        );
+      }
+
+      // CASO C: Pregunta normal sin relación con PDFs → Flujo estándar sin PDFs
+      console.log("➡️ Pregunta normal. Procesando sin PDFs.");
+
+      let messagesForGemini = filteredMessages.map((msg: any) => ({
+        role: msg.role === "user" ? "user" : "model",
+        parts: [{ text: msg.content }]
+      }));
 
       let result;
       try {
-        //result = await callGeminiWithFallback(filteredMessages, apiKeys); <--- OLD
-		result = await callGeminiWithFallback(messagesForGemini, apiKeys); // <--- CORREGIT
+        result = await callGeminiWithFallback(messagesForGemini, apiKeys);
       } catch (error: any) {
         if (error.allKeysFailed) {
           console.error("❌ TODAS LAS KEYS FALLARON", error);
