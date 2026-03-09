@@ -487,7 +487,7 @@ Deno.serve(async (req) => {
           // Llamar a Gemini con los PDFs
           let result;
           try {
-            result = await callGeminiWithFallback(messagesForGemini, apiKeys);
+            result = await callGeminiWithFallback(messagesForGemini, apiKeys, true);
           } catch (error: any) {
             if (error.allKeysFailed) {
               console.error("❌ TODAS LAS KEYS FALLARON", error);
