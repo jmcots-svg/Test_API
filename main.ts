@@ -33,6 +33,77 @@ function getPdfUrls(): string[] {
   return urls;
 }
 
+// Función para subir PDF a Gemini
+async function uploadPDFToGemini(pdfUrl: string, apiKey: string): Promise<string> {
+  try {
+    console.log(`📄 Descargando PDF: ${pdfUrl.slice(-50)}...`);
+    
+    const response = await fetch(pdfUrl);
+    if (!response.ok) {
+      throw new Error(`Error HTTP ${response.status}: ${response.statusText}`);
+    }
+    
+    const pdfBuffer = await response.arrayBuffer();
+    const pdfBytes = new Uint8Array(pdfBuffer);
+    
+    console.log(`📄 PDF descargado: ${pdfBytes.length} bytes`);
+    
+    // Subir a Google AI File Manager
+    const fileManager = new GoogleAIFileManager(apiKey);
+    const fileName = pdfUrl.includes('Ponderacions') ? 'ponderacions.pdf' : 'notes-tall.pdf';
+    
+    const uploadResult = await fileManager.uploadFile(fileName, {
+      mimeType: "application/pdf",
+      data: pdfBytes,
+    });
+    
+    console.log(`✅ PDF subido exitosamente: ${uploadResult.file.uri}`);
+    return uploadResult.file.uri;
+    
+  } catch (error) {
+    console.error(`❌ Error subiendo PDF: ${error.message}`);
+    throw error;
+  }
+}
+
+// Función para obtener URIs de PDFs (con cache)
+async function getPDFUris(apiKeys: string[]): Promise<string[]> {
+  const pdfUrls = getPdfUrls();
+  const uris: string[] = [];
+  const PDF_CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 horas
+  
+  for (const pdfUrl of pdfUrls) {
+    // Verificar cache
+    const cached = pdfCache.get(pdfUrl);
+    if (cached && Date.now() - cached.uploadTime < PDF_CACHE_DURATION) {
+      console.log(`♻️ Usando PDF cacheado para: ${pdfUrl.slice(-30)}...`);
+      uris.push(cached.uri);
+      continue;
+    }
+    
+    // Intentar subir con diferentes API keys
+    let uploaded = false;
+    for (const apiKey of apiKeys) {
+      try {
+        const uri = await uploadPDFToGemini(pdfUrl, apiKey);
+        pdfCache.set(pdfUrl, { uri, uploadTime: Date.now() });
+        uris.push(uri);
+        uploaded = true;
+        break;
+      } catch (error) {
+        console.warn(`⚠️ Falló subida con key ${apiKey.slice(0, 10)}...:`, error.message);
+        continue;
+      }
+    }
+    
+    if (!uploaded) {
+      console.error(`❌ No se pudo subir PDF: ${pdfUrl.slice(-30)}...`);
+    }
+  }
+  
+  return uris;
+}
+
 // ========== FUNCIONES ==========
 
 function getApiKeys(): string[] {
@@ -117,6 +188,11 @@ async function callGeminiWithFallback(
 ): Promise<any> {
   let lastError: any = null;
 
+  // Obtener PDFs al inicio (solo una vez)
+  console.log(`🔍 Cargando PDFs como contexto...`);
+  const pdfUris = await getPDFUris(apiKeys);
+  console.log(`📚 PDFs disponibles: ${pdfUris.length}`);
+
   const model1 = 'gemini-2.5-flash';
   const model2 = 'gemini-3.1-flash-lite-preview';
 
@@ -144,12 +220,37 @@ async function callGeminiWithFallback(
           role: msg.role === "user" ? "user" : "model",
           parts: [{ text: msg.content }],
         }));
+		
+	        // 🔥 AÑADIR PDFs al primer mensaje del usuario
+        if (pdfUris.length > 0 && formattedContents.length > 0) {
+          const firstUserMessage = formattedContents.find(msg => msg.role === "user");
+          if (firstUserMessage) {
+            // Añadir PDFs como fileData al principio
+            const pdfParts = pdfUris.map(uri => ({ 
+              fileData: { 
+                mimeType: "application/pdf", 
+                fileUri: uri 
+              } 
+            }));
+            
+            firstUserMessage.parts = [
+              ...pdfParts,
+              ...firstUserMessage.parts
+            ];
+            
+            console.log(`📎 Adjuntados ${pdfUris.length} PDFs al contexto`);
+          }
+        }
+
 
         const response = await ai.models.generateContent({
           model: modelToUse,
           contents: formattedContents,
           config: {
-            systemInstruction: promptDelSistema,
+            systemInstruction: promptDelSistema + 
+              (pdfUris.length > 0 ? 
+                "\n\n**DOCUMENTS ADJUNTS**: Tens accés als documents PDF oficials amb informació actualitzada sobre ponderacions i notes de tall universitàries. Utilitza SEMPRE aquesta informació quan sigui rellevant per respondre preguntes sobre notes d'accés, ponderacions o dades específiques d'universitats catalanes." : 
+                ""),
             temperature: 0.7,
             topP: 0.9,
             maxOutputTokens: 3500,
@@ -165,6 +266,7 @@ async function callGeminiWithFallback(
             candidates: [{ content: { parts: [{ text: response.text }] } }],
             usageMetadata: { totalTokenCount: response.usageMetadata?.totalTokenCount },
             modelVersion: modelToUse,
+			pdfsUsed: pdfUris.length,
           },
           keyUsed: i + 1,
           modelUsed: modelToUse,
