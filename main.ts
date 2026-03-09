@@ -148,16 +148,17 @@ function markdownToHTML(markdown: string): string {
   return `<div class="ai-response"><p>${html}</p></div>`;
 }
 
+
 // Importamos el SDK oficial desde npm
 import {
   GoogleGenAI,
   HarmBlockThreshold,
   HarmCategory,
   ThinkingLevel,
-} from "npm:@google/genai";
+} from "npm:@google/generative-ai";
 
-// Import separado para File Manager
-import { GoogleAIFileManager } from "npm:@google/geneai";
+// Para File Manager (import separado)
+import { GoogleAIFileManager } from "npm:@google/generative-ai";
 
 const promptDelSistema = `Ets un assessor expert en orientació universitària a Catalunya. El teu objectiu és ajudar a estudiants de batxillerat de forma ÚTIL, RÀPIDA i CONCISA.
 
