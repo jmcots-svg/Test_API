@@ -77,17 +77,33 @@ Deno.serve(async (req) => {
   
   // 🔥 MOVER AQUÍ - ANTES DEL GET GENÉRICO
   // ENDPOINT DE PRUEBA PDFs
-  if (req.method === "GET" && url.pathname === "/test-pdfs") {
-    const urls = getPdfUrls();
-    return new Response(
-      JSON.stringify({
-        message: "URLs de PDFs encontradas",
-        count: urls.length,
-        urls: urls.map(url => ({ url, domain: new URL(url).hostname }))
-      }),
-      { headers }
-    );
-  }
+// Reemplaza tu endpoint /test-pdfs por este más detallado:
+if (req.method === "GET" && url.pathname === "/test-pdfs") {
+  const grausUrl = Deno.env.get("PDF_URL_graus");
+  const notasUrl = Deno.env.get("PDF_URL_notas");
+  
+  return new Response(
+    JSON.stringify({
+      message: "Debug de variables PDF",
+      variables: {
+        PDF_URL_graus: {
+          exists: !!grausUrl,
+          value: grausUrl || "UNDEFINED",
+          length: grausUrl ? grausUrl.length : 0,
+          trimmed: grausUrl ? grausUrl.trim() : "N/A"
+        },
+        PDF_URL_notas: {
+          exists: !!notasUrl,
+          value: notasUrl || "UNDEFINED", 
+          length: notasUrl ? notasUrl.length : 0,
+          trimmed: notasUrl ? notasUrl.trim() : "N/A"
+        }
+      },
+      finalUrls: getPdfUrls()
+    }),
+    { headers }
+  );
+}
 
   // 🔥 HACER MÁS ESPECÍFICO - Solo raíz
   // GET / - Status  
@@ -103,10 +119,18 @@ Deno.serve(async (req) => {
     );
   }
 
-  // POST / - Consulta IA
-  if (req.method === "POST") {
-    // ... tu código POST existente igual ...
-  }
+// Endpoint para ver todas las rutas
+if (req.method === "GET" && url.pathname === "/debug") {
+  return new Response(
+    JSON.stringify({
+      method: req.method,
+      pathname: url.pathname,
+      fullUrl: req.url,
+      headers: [...req.headers.entries()],
+      env_count: Object.keys(Deno.env.toObject()).length
+    }),
+    { headers }
+  );
 
   return new Response("Not Found", { status: 404, headers });
 });
