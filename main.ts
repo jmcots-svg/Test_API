@@ -131,6 +131,6 @@ if (req.method === "GET" && url.pathname === "/debug") {
     }),
     { headers }
   );
-
+}
   return new Response("Not Found", { status: 404, headers });
 });
