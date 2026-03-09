@@ -55,7 +55,13 @@ function markdownToHTML(markdown: string): string {
 }
 
 // Importamos el SDK oficial desde npm
-import { GoogleGenAI } from "npm:@google/genai";
+import {
+  GoogleGenAI,
+  HarmBlockThreshold,
+  HarmCategory,
+  ThinkingLevel,
+} from "npm:@google/genai";
+
 
       const promptDelSistema = `Ets un assessor expert en orientació universitària a Catalunya. El teu objectiu és ajudar a estudiants de batxillerat de forma ÚTIL, RÀPIDA i CONCISA.
 
@@ -88,13 +94,28 @@ async function callGeminiWithFallback(
 ): Promise<any> {
   let lastError: any = null;
 
+  const model1 = 'gemini-2.5-flash';
+  const model2 = 'gemini-3.1-flash-lite-preview';  // ← tu model2
+
+  const tools1 = [
+    { googleSearch: {} },
+    { urlContext: {} },
+  ];
+  const tools2 = [
+    { urlContext: {} },                      // ← tu tools2 (sin googleSearch)
+  ];
+
+for (let vuelta = 0; vuelta < 2; vuelta++) {
   for (let i = 0; i < apiKeys.length; i++) {
     const apiKey = apiKeys[i];
-    console.log(`[Intento ${i + 1}/${apiKeys.length}] Usando key: ${apiKey.slice(0, 10)}...`);
+
+    // ✅ Si es el la vuelta 1 usa model 1
+const modelToUse = vuelta === 0 ? model1 : model2;
+const toolsToUse = vuelta === 0 ? tools1 : tools2;
+
+    console.log(`[Intento ${i + 1}/${apiKeys.length}] Key: ${apiKey.slice(0, 10)}... | Modelo: ${modelToUse}`);
 
     try {
-
-      // Inicializamos el SDK con la Key actual del bucle
       const ai = new GoogleGenAI({ apiKey: apiKey });
 
       const formattedContents = messagesToSend.map((msg) => ({
@@ -102,64 +123,43 @@ async function callGeminiWithFallback(
         parts: [{ text: msg.content }],
       }));
 
-      // Llamada usando el SDK oficial
       const response = await ai.models.generateContent({
-        model: 'gemini-3.1-flash-lite-preview',
+        model: modelToUse,        // ← usa el modelo correspondiente
         contents: formattedContents,
         config: {
-          systemInstruction: promptDelSistema, // El SDK maneja la estructura por ti
+          systemInstruction: promptDelSistema,
           temperature: 0.7,
           topP: 0.9,
           maxOutputTokens: 3500,
-          // 👇 Activamos la búsqueda en Google
-          tools: [{ googleSearch: {} }],
-          safetySettings: [
-            {
-              category: "HARM_CATEGORY_HARASSMENT",
-              threshold: "BLOCK_ONLY_HIGH",  // Block few
-            },
-            {
-              category: "HARM_CATEGORY_HATE_SPEECH",
-              threshold: "BLOCK_ONLY_HIGH",  // Block few
-            },
-            {
-              category: "HARM_CATEGORY_SEXUALLY_EXPLICIT",
-              threshold: "BLOCK_LOW_AND_ABOVE",  // Block most
-            },
-            {
-              category: "HARM_CATEGORY_DANGEROUS_CONTENT",
-              threshold: "BLOCK_ONLY_HIGH",  // Block few
-            },
-          ]
+          tools: toolsToUse,      // ← usa las tools correspondientes
         }
       });
 
-      console.log(`[Key ${i + 1}] ✅ Respuesta exitosa`);
-      
-      // Adaptamos la respuesta para que tu código actual no se rompa
-      return { 
-        success: true, 
+      console.log(`[Key ${i + 1}] ✅ Respuesta exitosa con modelo: ${modelToUse}`);
+
+      return {
+        success: true,
         data: {
           candidates: [{ content: { parts: [{ text: response.text }] } }],
-          usageMetadata: { totalTokenCount: response.usageMetadata?.totalTokenCount }
-        }, 
-        keyUsed: i + 1 
+          usageMetadata: { totalTokenCount: response.usageMetadata?.totalTokenCount },
+          modelVersion: modelToUse,   // ← añadido para el metadata de la respuesta
+        },
+        keyUsed: i + 1,
+        modelUsed: modelToUse,        // ← info extra útil para logs
       };
 
     } catch (e: any) {
-      // Si el error incluye "429" o "Quota Exceeded", saltamos a la siguiente key
       if (e.message?.includes("429") || e.status === 429) {
         console.warn(`[Key ${i + 1}] Cuota excedida. Intentando siguiente...`);
         lastError = e;
         continue;
       }
-      // Para otros errores (400, etc), también probamos con la siguiente o paramos según prefieras
       console.error(`[Key ${i + 1}] Excepción:`, e.message);
       lastError = e;
       continue;
     }
   }
-
+}
   throw { allKeysFailed: true, lastError: lastError, keysAttempted: apiKeys.length };
 }
 
