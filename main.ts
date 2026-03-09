@@ -199,6 +199,22 @@ Deno.serve(async (req) => {
     tokenValidos.set(token, Date.now() + 30000); // 30 segundos
     return new Response(JSON.stringify({ token }), { headers });
   }
+  
+  // Cache para PDFs subidos
+const pdfCache = new Map<string, { uri: string, uploadTime: number }>();
+
+// Función para obtener las URLs de los PDFs
+function getPdfUrls(): string[] {
+  const urls = [];
+  const grausUrl = Deno.env.get("PDF_URL_graus");
+  const notasUrl = Deno.env.get("PDF_URL_notas");
+  
+  if (grausUrl) urls.push(grausUrl);
+  if (notasUrl) urls.push(notasUrl);
+  
+  console.log(`PDFs configurados: ${urls.length}`);
+  return urls;
+}
 
   // GET / - Status
   if (req.method === "GET") {
@@ -323,5 +339,18 @@ Deno.serve(async (req) => {
     }
   }
 
+  // NUEVO ENDPOINT DE PRUEBA - antes del 404
+	if (req.method === "GET" && url.pathname === "/test-pdfs") {
+	  const urls = getPdfUrls();
+	  return new Response(
+		JSON.stringify({
+		  message: "URLs de PDFs encontradas",
+		  count: urls.length,
+		  urls: urls.map(url => ({ url, domain: new URL(url).hostname }))
+		}),
+		{ headers }
+	  );
+	}
+	
   return new Response("Not Found", { status: 404, headers });
 });
