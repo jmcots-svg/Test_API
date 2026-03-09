@@ -167,7 +167,6 @@ async function callGeminiWithFallback(
             candidates: [{ content: { parts: [{ text: response.text }] } }],
             usageMetadata: { totalTokenCount: response.usageMetadata?.totalTokenCount },
             modelVersion: modelToUse,
-			pdfsUsed: pdfUris.length,
           },
           keyUsed: i + 1,
           modelUsed: modelToUse,
