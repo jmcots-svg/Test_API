@@ -395,7 +395,7 @@ Deno.serve(async (req) => {
       const lastUserMessageText = lastUserMessage ? lastUserMessage.content || "" : "";
 
       const pdfKeywords = [
-          "notes d'accés", "graus universitaris", "universitat", "carrera", "notes", "graus",
+          "notes d'accés", "graus universitaris", "universitat", "carrera", "notes", "graus", "batxillerat", "accés", "codi", "places", "tall",
           "assignatures", "materies", "ponderacions", "ponderacio", "dobles graus", "selectivitat", "pau", "carreres", "oficial"
       ];  // Afegeix més paraules clau rellevants
 
