@@ -19,18 +19,18 @@ const pdfCache = new Map<string, { uri: string, uploadTime: number }>();
 function getPdfUrls(): string[] {
   const urls = [];
   const grausUrl = Deno.env.get("PDF_URL_graus");
-  const notasUrl = Deno.env.get("PDF_URL_notas");
+  const notesUrl = Deno.env.get("PDF_URL_notes");
   
   if (grausUrl && grausUrl.trim()) {
     urls.push(grausUrl.trim());
   }
-  if (notasUrl && notasUrl.trim()) {
-    urls.push(notasUrl.trim());
+  if (notesUrl && notesUrl.trim()) {
+    urls.push(notesUrl.trim());
   }
   
   console.log(`PDFs configurados: ${urls.length}`);
   console.log(`PDF graus: ${grausUrl ? 'SÍ' : 'NO'}`);
-  console.log(`PDF notes: ${notasUrl ? 'SÍ' : 'NO'}`);
+  console.log(`PDF notes: ${notesUrl ? 'SÍ' : 'NO'}`);
   return urls;
 }
 
@@ -80,7 +80,7 @@ Deno.serve(async (req) => {
 // Reemplaza tu endpoint /test-pdfs por este más detallado:
 if (req.method === "GET" && url.pathname === "/test-pdfs") {
   const grausUrl = Deno.env.get("PDF_URL_graus");
-  const notasUrl = Deno.env.get("PDF_URL_notas");
+  const notesUrl = Deno.env.get("PDF_URL_notes");
   
   return new Response(
     JSON.stringify({
@@ -92,11 +92,11 @@ if (req.method === "GET" && url.pathname === "/test-pdfs") {
           length: grausUrl ? grausUrl.length : 0,
           trimmed: grausUrl ? grausUrl.trim() : "N/A"
         },
-        PDF_URL_notas: {
-          exists: !!notasUrl,
-          value: notasUrl || "UNDEFINED", 
-          length: notasUrl ? notasUrl.length : 0,
-          trimmed: notasUrl ? notasUrl.trim() : "N/A"
+        PDF_URL_notes: {
+          exists: !!notesUrl,
+          value: notesUrl || "UNDEFINED", 
+          length: notesUrl ? notesUrl.length : 0,
+          trimmed: notesUrl ? notesUrl.trim() : "N/A"
         }
       },
       finalUrls: getPdfUrls()
