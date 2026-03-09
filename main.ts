@@ -123,43 +123,43 @@ async function callGeminiWithFallback(
   let lastError: any = null;
 
   // Obtener URLs de los PDFs
-  const pdfUrls = getPdfUrls();
-  console.log(`📚 PDFs disponibles: ${pdfUrls.length}`);
+ // const pdfUrls = getPdfUrls();
+  //console.log(`📚 PDFs disponibles: ${pdfUrls.length}`);
   
     // 🔥 CONSTRUIR LOS CONTENIDOS UNA SOLA VEZ, FUERA DE LOS BUCLES
-  const urlParts = pdfUrls.map(url => ({
-    fileData: {
-      mimeType: "application/pdf",
-      fileUri: url,
-    }
-  }));
+  //const urlParts = pdfUrls.map(url => ({
+    //fileData: {
+     // mimeType: "application/pdf",
+     // fileUri: url,
+   // }
+  //}));
   
-    let pdfAttached = false; // ← AQUÍ, fuera de los bucles for
+   // let pdfAttached = false; // ← AQUÍ, fuera de los bucles for
 	
-	  const formattedContents = messagesToSend.map((msg: any) => {
-    if (msg.role === "user" && !pdfAttached && urlParts.length > 0) {
-      pdfAttached = true;
-      return {
-        role: "user",
-        parts: [
-          ...urlParts,
-          { text: msg.content },
-        ]
-      };
-    }
-    if (msg.role === "user") {
-      return {
-        role: "user",
-        parts: [{ text: msg.content }],
-      };
-    }
-    return {
-      role: "model",
-      parts: [{ text: msg.content }],
-    };
-  });
+	  //const formattedContents = messagesToSend.map((msg: any) => {
+    //if (msg.role === "user" && !pdfAttached && urlParts.length > 0) {
+     // pdfAttached = true;
+     // return {
+       // role: "user",
+        //parts: [
+         // ...urlParts,
+         // { text: msg.content },
+        //]
+     // };
+   // }
+   // if (msg.role === "user") {
+     // return {
+        //role: "user",
+       // parts: [{ text: msg.content }],
+      //};
+    //}
+    //return {
+      //role: "model",
+      //parts: [{ text: msg.content }],
+    //};
+  //});
 
-  console.log(`📎 PDFs adjuntados al primer mensaje. Total mensajes: ${formattedContents.length}`);
+  //console.log(`📎 PDFs adjuntados al primer mensaje. Total mensajes: ${formattedContents.length}`);
   
   const model1 = 'gemini-2.5-flash';
   const model2 = 'gemini-3.1-flash-lite-preview';
@@ -183,14 +183,17 @@ async function callGeminiWithFallback(
 
       try {
         const ai = new GoogleGenAI({ apiKey: apiKey });
-		const formattedContents = messagesToSend.map((msg) => ({
-  role: msg.role === "user" ? "user" : "model",
-  parts: msg.parts ? msg.parts : [{ text: msg.content }], // S'assegura que si ja té 'parts' (amb PDFs), les mantingui.
-}));
+		
+		const contentsForGemini = messagesToSend;
+		//const formattedContents = messagesToSend.map((msg) => ({
+		//	role: msg.role === "user" ? "user" : "model",
+		//	parts: msg.parts ? msg.parts : [{ text: msg.content }], // S'assegura que si ja té 'parts' (amb PDFs), les mantingui.
+		//}));
 		
         const response = await ai.models.generateContent({
           model: modelToUse,
-          contents: formattedContents,
+          //contents: formattedContents,
+		  contents: contentsForGemini,
           config: {
 				systemInstruction: promptDelSistema,
 						temperature: 0.7,
@@ -432,7 +435,8 @@ Deno.serve(async (req) => {
 
       let result;
       try {
-        result = await callGeminiWithFallback(filteredMessages, apiKeys);
+        //result = await callGeminiWithFallback(filteredMessages, apiKeys); <--- OLD
+		result = await callGeminiWithFallback(messagesForGemini, apiKeys); // <--- CORREGIT
       } catch (error: any) {
         if (error.allKeysFailed) {
           console.error("❌ TODAS LAS KEYS FALLARON", error);
