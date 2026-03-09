@@ -124,7 +124,7 @@ const PDF_CONFIRMATION_QUESTION = "Vols que consulti aquesta informació als doc
 
 // Palabras clave para detectar si la pregunta está relacionada con los PDFs
 const pdfKeywords = [
-  "generalitat", "oficial", "pdf",
+  "pdf",
 ];
 
 // Palabras que indican confirmación afirmativa del usuario
