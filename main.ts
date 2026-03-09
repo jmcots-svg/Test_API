@@ -87,7 +87,6 @@ import {
   ThinkingLevel,
 } from "npm:@google/genai";
 
-
 const promptDelSistema = `Ets un assessor expert en orientació universitària a Catalunya. El teu objectiu és ajudar a estudiants de batxillerat de forma ÚTIL, RÀPIDA i CONCISA.
 
 **EL TEU ROL:**
@@ -115,6 +114,7 @@ const promptDelSistema = `Ets un assessor expert en orientació universitària a
 3. MAI utilitzis asteriscos per fer negretes, mantingues text pla.
 4. Sigues breu però complet. Menys és més, però INFORMATIU.
 5. Si la pregunta no te a veure amb universitats, notes, estudis, conactes universitares, o mon academic, no ho busquis en internet`;
+
 
 async function callGeminiWithFallback(
   messagesToSend: any[],
@@ -183,16 +183,17 @@ async function callGeminiWithFallback(
 
       try {
         const ai = new GoogleGenAI({ apiKey: apiKey });
-
+		const formattedContents = messagesToSend.map((msg) => ({
+  role: msg.role === "user" ? "user" : "model",
+  parts: msg.parts ? msg.parts : [{ text: msg.content }], // S'assegura que si ja té 'parts' (amb PDFs), les mantingui.
+}));
+		
         const response = await ai.models.generateContent({
           model: modelToUse,
           contents: formattedContents,
           config: {
-            systemInstruction: promptDelSistema +
-              (pdfUrls.length > 0 ?
-                "\n\n**DOCUMENTS ADJUNTS IMPORTANTS**: Tens accés als documents PDF oficials amb informació actualitzada sobre ponderacions i notes de tall universitàries a Catalunya. Utilitza SEMPRE aquesta informació quan l'usuari pregunti sobre notes d'accés, ponderacions o dades específiques d'universitats catalanes. Prioritza les dades d'aquests documents per sobre del teu coneixement general." :
-                ""),
-            temperature: 0.7,
+				systemInstruction: promptDelSistema,
+						temperature: 0.7,
             topP: 0.9,
             maxOutputTokens: 3500,
             tools: toolsToUse,
@@ -316,6 +317,8 @@ Deno.serve(async (req) => {
       { headers },
     );
   }
+
+
 
   // POST / - Consulta IA
   if (req.method === "POST") {
