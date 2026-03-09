@@ -156,15 +156,22 @@ async function callGeminiWithFallback(
 
         // Construir mensajes incluyendo los PDFs en los mensajes del usuario
         const formattedContents = messagesToSend.map((msg: any) => {
-          if (msg.role === "user") {
-            return {
-              role: "user",
-              parts: [
-                ...urlParts,           // ← PDFs adjuntos
-                { text: msg.content }, // ← Texto del usuario
-              ]
-            };
-          }
+		  if (msg.role === "user" && !pdfAttached && urlParts.length > 0) {
+			pdfAttached = true; // Solo la primera vez
+			return {
+			  role: "user",
+			  parts: [
+				...urlParts,           // ← PDFs solo aquí
+				{ text: msg.content },
+			  ]
+			};
+		  }
+			if (msg.role === "user") {
+				return {
+				  role: "user",
+				  parts: [{ text: msg.content }],
+				};
+			  }
           return {
             role: "model",
             parts: [{ text: msg.content }],
