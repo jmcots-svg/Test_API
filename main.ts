@@ -607,46 +607,38 @@ Deno.serve(async (req) => {
 
 		// CASO B: Pregunta nueva del usuario - comprobar si contiene palabras clave de PDFs
 
-		// 🔥 EXTRAER SOLO LA PREGUNTA REAL DEL USUARIO (ignorar el contexto de filtros)
-		let textToAnalyze = lastUserMessageText;
+		// 🔥 Si es la PRIMERA pregunta, NUNCA preguntar por PDFs
+		const esPrimerMensaje = filteredMessages.length === 1;
 
-		// Si el mensaje contiene el marcador de pregunta del frontend, extraer solo esa parte
-		const preguntaMatch = lastUserMessageText.match(/$$❓\s*PREGUNTA DEL STUDENT$$\s*([\s\S]*?)$/i);
-		if (preguntaMatch) {
-		  textToAnalyze = preguntaMatch[1].trim();
-		  console.log("📝 Pregunta extraída del contexto:", textToAnalyze);
-		} else {
-		  console.log("📝 Mensaje sin marcador de contexto:", textToAnalyze.substring(0, 100) + "...");
+		if (esPrimerMensaje) {
+		  console.log("➡️ Primera pregunta del usuario. Saltando comprobación de PDFs.");
 		}
 
-		// Si la pregunta real es muy corta (menos de 10 caracteres), probablemente es un saludo
-		// y no tiene sentido preguntar por PDFs
-		const isPdfRelated = textToAnalyze.length >= 10 && pdfKeywords.some(keyword =>
-		  textToAnalyze.toLowerCase().includes(keyword.toLowerCase())
+		// Solo analizar keywords si NO es el primer mensaje
+		const isPdfRelated = !esPrimerMensaje && pdfKeywords.some(keyword =>
+		  lastUserMessageText.toLowerCase().includes(keyword.toLowerCase())
 		);
 
-		console.log(`🔍 Texto analizado: "${textToAnalyze}" (${textToAnalyze.length} chars) | Relacionado con PDFs: ${isPdfRelated}`);
+		if (isPdfRelated && !awaitingConfirmation) {
+		  // 🔔 La pregunta es relevante para PDFs → PREGUNTAR AL USUARIO
+		  console.log("🔔 Pregunta relacionada con PDFs detectada. Preguntando al usuario...");
 
-      if (isPdfRelated && !awaitingConfirmation) {
-        // 🔔 La pregunta es relevante para PDFs → PREGUNTAR AL USUARIO
-        console.log("🔔 Pregunta relacionada con PDFs detectada. Preguntando al usuario...");
+		  const htmlResponse = markdownToHTML(PDF_CONFIRMATION_QUESTION);
 
-        const htmlResponse = markdownToHTML(PDF_CONFIRMATION_QUESTION);
-
-        return new Response(
-          JSON.stringify([{
-            generated_text: PDF_CONFIRMATION_QUESTION,
-            html: htmlResponse,
-            metadata: {
-              tokens_used: 0,
-              model: "confirmation-prompt",
-              keyUsed: 0,
-              awaitingPdfConfirmation: true,
-            },
-          }]),
-          { headers },
-        );
-      }
+		  return new Response(
+			JSON.stringify([{
+			  generated_text: PDF_CONFIRMATION_QUESTION,
+			  html: htmlResponse,
+			  metadata: {
+				tokens_used: 0,
+				model: "confirmation-prompt",
+				keyUsed: 0,
+				awaitingPdfConfirmation: true,
+			  },
+			}]),
+			{ headers },
+		  );
+		}
 
       // CASO C: Pregunta normal sin relación con PDFs → Flujo estándar sin PDFs
       console.log("➡️ Pregunta normal. Procesando sin PDFs.");
