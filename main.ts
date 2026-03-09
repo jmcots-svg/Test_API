@@ -8,7 +8,7 @@ const ALLOWED_ORIGINS = [
   "https://www.batxi2uni.run.place",
   "https://batxi2uni.run.place",
   "https://api.batxi2uni.run.place",
-  "https://jmcots-svg.github.io/Test_API/",
+  "https://jmcots-svg.github.io",
 ];
 
 // ========== FUNCIONES ==========
