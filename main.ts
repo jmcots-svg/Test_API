@@ -605,10 +605,27 @@ Deno.serve(async (req) => {
         console.log("🤔 Respuesta ambigua a la confirmación. Procesando como pregunta normal.");
       }
 
-      // CASO B: Pregunta nueva del usuario - comprobar si contiene palabras clave de PDFs
-      const isPdfRelated = pdfKeywords.some(keyword =>
-        lastUserMessageText.toLowerCase().includes(keyword.toLowerCase())
-      );
+		// CASO B: Pregunta nueva del usuario - comprobar si contiene palabras clave de PDFs
+
+		// 🔥 EXTRAER SOLO LA PREGUNTA REAL DEL USUARIO (ignorar el contexto de filtros)
+		let textToAnalyze = lastUserMessageText;
+
+		// Si el mensaje contiene el marcador de pregunta del frontend, extraer solo esa parte
+		const preguntaMatch = lastUserMessageText.match(/$$❓\s*PREGUNTA DEL STUDENT$$\s*([\s\S]*?)$/i);
+		if (preguntaMatch) {
+		  textToAnalyze = preguntaMatch[1].trim();
+		  console.log("📝 Pregunta extraída del contexto:", textToAnalyze);
+		} else {
+		  console.log("📝 Mensaje sin marcador de contexto:", textToAnalyze.substring(0, 100) + "...");
+		}
+
+		// Si la pregunta real es muy corta (menos de 10 caracteres), probablemente es un saludo
+		// y no tiene sentido preguntar por PDFs
+		const isPdfRelated = textToAnalyze.length >= 10 && pdfKeywords.some(keyword =>
+		  textToAnalyze.toLowerCase().includes(keyword.toLowerCase())
+		);
+
+		console.log(`🔍 Texto analizado: "${textToAnalyze}" (${textToAnalyze.length} chars) | Relacionado con PDFs: ${isPdfRelated}`);
 
       if (isPdfRelated && !awaitingConfirmation) {
         // 🔔 La pregunta es relevante para PDFs → PREGUNTAR AL USUARIO
